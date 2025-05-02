@@ -1,8 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
-
-DROP SCHEMA pgraf CASCADE;
-
 CREATE SCHEMA IF NOT EXISTS pgraf;
 
 SET search_path=pgraf, public, pg_catalog;
