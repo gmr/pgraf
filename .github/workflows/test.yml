@@ -10,26 +10,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_PASSWORD: password
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --mount type=bind,source=${{ github.workspace }}/schema,target=/docker-entrypoint-initdb.d
-        ports:
-          - 5432:5432
-
     strategy:
       matrix:
         python-version: [ '3.12', '3.13' ]
 
     steps:
       - uses: actions/checkout@v3
+
+      - uses: hoverkraft-tech/compose-action@v2.2.0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4

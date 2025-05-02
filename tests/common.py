@@ -1,5 +1,4 @@
 import json
-import os
 import subprocess
 import unittest
 
@@ -30,9 +29,6 @@ def _docker_port() -> int:
 
 def postgres_url() -> pydantic.PostgresDsn:
     """Return connection parameters for database in either environment"""
-    port = (
-        5432 if os.environ.get('GITHUB_ACTIONS') == 'true' else _docker_port()
-    )
     return pydantic.PostgresDsn(
-        f'postgres://postgres:password@localhost:{port}/postgres'
+        f'postgres://postgres:password@localhost:{_docker_port()}/postgres'
     )
