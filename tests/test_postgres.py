@@ -98,3 +98,6 @@ class PostgresTestCase(common.PostgresTestCase):
     async def test_shutdown_double_call(self) -> None:
         await self.postgres.shutdown()
         self.assertIsNone(self.postgres._pool)
+        with self.assertRaises(RuntimeError):
+            async with self.postgres.execute('SELECT 1') as _:
+                ...

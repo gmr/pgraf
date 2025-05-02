@@ -14,9 +14,13 @@ from pgraf import errors, utils
 LOGGER = logging.getLogger(__name__)
 
 Model = typing.TypeVar('Model', bound=pydantic.BaseModel)
+AsyncCursor = psycopg.AsyncCursor[Model | tuple[typing.Any, ...]]
+RowFactory = rows.BaseRowFactory[Model | tuple[typing.Any, ...]]
 
 
 class Postgres:
+    _pool: psycopg_pool.AsyncConnectionPool | None
+
     def __init__(
         self,
         url: pydantic.PostgresDsn,
@@ -46,18 +50,20 @@ class Postgres:
     async def cursor(
         self,
         row_class: type[pydantic.BaseModel] | None = None,
-        row_factory: rows.RowFactory = rows.dict_row,
-    ) -> abc.AsyncGenerator[psycopg.AsyncCursor]:
+        row_factory: RowFactory | None = None,
+    ) -> abc.AsyncGenerator[AsyncCursor]:
         """Get a cursor for Postgres."""
-        if row_class:
-            factory = rows.class_row(row_class)
-        else:
-            factory = row_factory
-        if self._pool.closed:
+        if not self._pool:
+            raise RuntimeError('Postgres instance already shutdown')
+        elif self._pool.closed:
             await self._open_pool()
         async with self._pool.connection() as conn:
-            async with conn.cursor(row_factory=factory) as crs:
-                yield crs
+            async with conn.cursor(
+                row_factory=rows.class_row(row_class)
+                if row_class
+                else row_factory or rows.dict_row
+            ) as cursor:
+                yield cursor
 
     @contextlib.asynccontextmanager
     async def execute(
@@ -65,15 +71,15 @@ class Postgres:
         query: str | sql.Composable,
         parameters: dict | None = None,
         row_class: type[pydantic.BaseModel] | None = None,
-        row_factory: rows.RowFactory = rows.dict_row,
-    ) -> typing.AsyncIterator[psycopg.AsyncCursor]:
+        row_factory: RowFactory | None = None,
+    ) -> typing.AsyncIterator[AsyncCursor]:
         """Wrapper context manager for making executing queries easier."""
         async with self.cursor(row_class, row_factory) as cursor:
             if isinstance(query, sql.Composable):
                 query = query.as_string(cursor)
-            query = re.sub(r'\s+', ' ', query).encode('utf-8')
+            composed = re.sub(r'\s+', ' ', query).encode('utf-8')
             try:
-                await cursor.execute(query, parameters or {})
+                await cursor.execute(composed, parameters or {})
                 yield cursor
             except psycopg.DatabaseError as err:
                 raise errors.DatabaseError(str(err)) from err
@@ -83,7 +89,7 @@ class Postgres:
         is already open.
 
         """
-        if self._pool.closed:
+        if self._pool and self._pool.closed:
             LOGGER.debug(
                 'Opening connection pool to %s', utils.sanitize(self._url)
             )
