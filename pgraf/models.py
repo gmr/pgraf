@@ -39,7 +39,7 @@ class Node(_ModelWithProperties):
         default_factory=utils.current_timestamp
     )
     modified_at: datetime.datetime | None
-    label: str
+    type: str
 
 
 class Edge(_ModelWithProperties):
@@ -92,21 +92,17 @@ class TsVector(pydantic.BaseModel):
     def parse_tsvector(cls, value):
         if isinstance(value, str):
             result = {}
-            # Match each lexeme entry: 'word':positions
             for match in re.finditer(
                 r"'([^']+)':(\d+[A-D]?(?:,\d+[A-D]?)*)", value
-            ):
+            ):  # Match each lexeme entry: 'word':positions
                 word, positions_str = match.groups()
                 positions = []
-
-                # Parse all positions for this lexeme
                 for pos_match in positions_str.split(','):
                     if pos_match[-1] in 'ABCD':
                         pos, weight = int(pos_match[:-1]), pos_match[-1]
                     else:
                         pos, weight = int(pos_match), None
                     positions.append(TsPosition(position=pos, weight=weight))
-
                 result[word] = positions
             return result
         return value
@@ -132,6 +128,6 @@ class DocumentNode(pydantic.BaseModel):
     content: str
     type: str | None
     url: str | None
-    vector: str | None
+    vector: str | None = None
 
     model_config = {'json_schema_extra': {'exclude': ['vector']}}

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     id           UUID                      NOT NULL  PRIMARY KEY,
     created_at   TIMESTAMP WITH TIME ZONE  NOT NULL  DEFAULT CURRENT_TIMESTAMP,
     modified_at  TIMESTAMP WITH TIME ZONE,
-    label        TEXT                      NOT NULL,
+    type         TEXT                      NOT NULL,
     properties   JSONB                     NOT NULL  DEFAULT '{}'::jsonb
 );
 
@@ -49,15 +49,15 @@ CREATE INDEX IF NOT EXISTS document_nodes_tsvector_idx ON document_nodes USING G
 CREATE OR REPLACE FUNCTION document_node_proprocess()
 RETURNS TRIGGER AS $$
 DECLARE
-  label TEXT;
+  node_type TEXT;
   vector TSVECTOR;
 BEGIN
-  SELECT label INTO label
+  SELECT type INTO node_type
     FROM nodes
    WHERE id = NEW.node;
-  IF label != 'document' THEN
+  IF node_type != 'document' THEN
     RAISE EXCEPTION 'Node with ID % has label %, expected document',
-                    NEW.node, label;
+                    NEW.node, node_type;
   END IF;
   SELECT to_tsvector(NEW.content) INTO vector;
   NEW.vector = vector;

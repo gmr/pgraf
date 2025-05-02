@@ -74,7 +74,7 @@ class TestNodeModel(unittest.TestCase):
         # We'll test that node has defaults for id and created_at
         # without using mocks that are hard to get working
         node = models.Node(
-            label='Person', properties={'name': 'John'}, modified_at=None
+            type='Person', properties={'name': 'John'}, modified_at=None
         )
 
         self.assertTrue(node.id is not None)
@@ -82,7 +82,7 @@ class TestNodeModel(unittest.TestCase):
 
         self.assertIsInstance(node.created_at, datetime.datetime)
         self.assertIsNone(node.modified_at)
-        self.assertEqual(node.label, 'Person')
+        self.assertEqual(node.type, 'Person')
         self.assertEqual(node.properties, {'name': 'John'})
 
     def test_node_explicit_values(self):
@@ -94,14 +94,14 @@ class TestNodeModel(unittest.TestCase):
             id=test_uuid,
             created_at=test_time,
             modified_at=test_time,
-            label='City',
+            type='City',
             properties={'name': 'New York'},
         )
 
         self.assertEqual(node.id, test_uuid)
         self.assertEqual(node.created_at, test_time)
         self.assertEqual(node.modified_at, test_time)
-        self.assertEqual(node.label, 'City')
+        self.assertEqual(node.type, 'City')
         self.assertEqual(node.properties, {'name': 'New York'})
 
 
