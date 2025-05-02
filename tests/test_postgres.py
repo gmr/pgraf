@@ -1,13 +1,12 @@
 import datetime
 import random
-import unittest
 import uuid
 
 import psycopg_pool
 import pydantic
 from psycopg import sql
 
-from pgraf import errors, postgres, utils
+from pgraf import errors, utils
 from tests import common
 
 TEST_TABLE = """\
@@ -37,9 +36,9 @@ class Model(pydantic.BaseModel):
     labels: list[str] | None = None
 
 
-class PostgresTestCase(unittest.IsolatedAsyncioTestCase):
+class PostgresTestCase(common.PostgresTestCase):
     async def asyncSetUp(self) -> None:
-        self.postgres = postgres.Postgres(common.postgres_url())
+        await super().asyncSetUp()
         async with self.postgres.cursor() as cursor:
             await cursor.execute(TEST_TABLE)
 
@@ -47,17 +46,16 @@ class PostgresTestCase(unittest.IsolatedAsyncioTestCase):
         if self.postgres._pool:
             async with self.postgres.cursor() as cursor:
                 await cursor.execute('DROP TABLE public.test')
-        await self.postgres.shutdown()
+        await super().asyncTearDown()
 
     async def test_pool_is_created(self) -> None:
         self.assertIsInstance(
             self.postgres._pool, psycopg_pool.AsyncConnectionPool
         )
 
-    async def test_pool_open(self) -> None:
-        # Pool should already be open
-        result = await self.postgres.open_pool()
-        self.assertFalse(result)
+    async def test_pool_is_opened(self) -> None:
+        await self.postgres._open_pool()
+        self.assertFalse(self.postgres._pool.closed)
 
     async def test_execute(self) -> None:
         item = Model()
@@ -99,4 +97,4 @@ class PostgresTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_shutdown_double_call(self) -> None:
         await self.postgres.shutdown()
-        # Will be called again in teardown
+        self.assertIsNone(self.postgres._pool)

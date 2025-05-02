@@ -1,8 +1,22 @@
 import json
 import os
 import subprocess
+import unittest
 
 import pydantic
+
+from pgraf import postgres
+
+
+class PostgresTestCase(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.postgres = postgres.Postgres(postgres_url())
+
+    async def asyncTearDown(self) -> None:
+        if self.postgres._pool:
+            async with self.postgres.cursor() as cursor:
+                await cursor.execute('TRUNCATE TABLE pgraf.nodes CASCADE')
+        await self.postgres.shutdown()
 
 
 def _docker_port() -> int:

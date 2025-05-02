@@ -32,18 +32,6 @@ class Postgres:
             open=False,
         )
 
-    async def open_pool(self) -> None:
-        """Open the connection pool, returns False if the pool
-        is already open.
-
-        """
-        if self._pool.closed:
-            LOGGER.debug(
-                'Opening connection pool to %s', utils.sanitize(self._url)
-            )
-            await self._pool.open(True, timeout=3.0)
-            LOGGER.debug('Connection pool opened')
-
     async def shutdown(self) -> None:
         """Close the connection pool, returns False if the pool
         is already closed.
@@ -66,7 +54,7 @@ class Postgres:
         else:
             factory = row_factory
         if self._pool.closed:
-            await self.open_pool()
+            await self._open_pool()
         async with self._pool.connection() as conn:
             async with conn.cursor(row_factory=factory) as crs:
                 yield crs
@@ -89,3 +77,15 @@ class Postgres:
                 yield cursor
             except psycopg.DatabaseError as err:
                 raise errors.DatabaseError(str(err)) from err
+
+    async def _open_pool(self) -> None:
+        """Open the connection pool, returns False if the pool
+        is already open.
+
+        """
+        if self._pool.closed:
+            LOGGER.debug(
+                'Opening connection pool to %s', utils.sanitize(self._url)
+            )
+            await self._pool.open(True, timeout=3.0)
+            LOGGER.debug('Connection pool opened')
