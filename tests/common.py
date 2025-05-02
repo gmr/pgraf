@@ -1,4 +1,5 @@
 import json
+import random
 import subprocess
 import unittest
 
@@ -25,6 +26,11 @@ def _docker_port() -> int:
     )
     process = json.loads(result.stdout)
     return process['Publishers'][0]['PublishedPort']
+
+
+def test_embeddings() -> list[float]:
+    """Returns a list of 1536 floats for testing."""
+    return [float(f'{random.random()}') for _v in range(1536)]  # noqa: S311
 
 
 def postgres_url() -> pydantic.PostgresDsn:
