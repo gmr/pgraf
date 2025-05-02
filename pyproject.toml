@@ -21,8 +21,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "psycopg",
-    "pydantic"
+    "orjson>=3.10,<4",
+    "psycopg[pool]>=3.2.4,<4",
+    "pydantic>=2.11.3,<3",
+    "uuid_utils>=0.10.0,<0.11.0"
 ]
 
 [project.urls]
