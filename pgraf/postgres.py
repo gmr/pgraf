@@ -9,7 +9,7 @@ import psycopg_pool
 import pydantic
 from psycopg import rows, sql
 
-from pgraf import utils
+from pgraf import errors, utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,10 +17,11 @@ Model = typing.TypeVar('Model', bound=pydantic.BaseModel)
 
 
 class Postgres:
-    _instance: typing.Self | None = None
-
     def __init__(
-        self, url: pydantic.PostgresDsn, pool_min_size: int, pool_max_size: int
+        self,
+        url: pydantic.PostgresDsn,
+        pool_min_size: int = 1,
+        pool_max_size: int = 10,
     ) -> None:
         self._url = str(url)
         self._pool = psycopg_pool.AsyncConnectionPool(
@@ -31,23 +32,7 @@ class Postgres:
             open=False,
         )
 
-    @classmethod
-    def get_instance(
-        cls,
-        url: pydantic.PostgresDsn | None = None,
-        pool_min_size: int = 1,
-        pool_max_size: int = 10,
-    ) -> typing.Self:
-        """Get the instance of the database layer, passing in the URL
-        and pool settings. You must pass the URL the first time you
-        """
-        if cls._instance is None:
-            if url is None:
-                raise AttributeError('You must pass `url` on the first call')
-            cls._instance = cls(url, pool_min_size, pool_max_size)
-        return cls._instance
-
-    async def open_pool(self) -> bool:
+    async def open_pool(self) -> None:
         """Open the connection pool, returns False if the pool
         is already open.
 
@@ -58,19 +43,16 @@ class Postgres:
             )
             await self._pool.open(True, timeout=3.0)
             LOGGER.debug('Connection pool opened')
-            return True
-        return False
 
-    async def close_pool(self) -> bool:
+    async def shutdown(self) -> None:
         """Close the connection pool, returns False if the pool
         is already closed.
 
         """
-        if not self._pool.closed:
+        if self._pool and not self._pool.closed:
             LOGGER.debug('Closing connection pool')
             await self._pool.close()
-            return True
-        return False
+        self._pool = None
 
     @contextlib.asynccontextmanager
     async def cursor(
@@ -89,23 +71,21 @@ class Postgres:
             async with conn.cursor(row_factory=factory) as crs:
                 yield crs
 
-
-
-@contextlib.asynccontextmanager
-async def execute(
-    query: str | sql.Composable,
-    parameters: dict | None = None,
-    row_class: type[pydantic.BaseModel] | None = None,
-    row_factory: rows.RowFactory = rows.dict_row,
-) -> typing.AsyncIterator[psycopg.AsyncCursor]:
-    """Wrapper context manager for making executing queries easier."""
-    postgres = Postgres.get_instance()
-    async with postgres.cursor(row_class, row_factory) as cursor:
-        if isinstance(query, sql.Composable):
-            query = query.as_string(cursor)
-        query = re.sub(r'\s+', ' ', query).encode('utf-8')
-        try:
-            await cursor.execute(query, parameters or {})
-            yield cursor
-        except psycopg.DatabaseError as err:
-            raise errors.DatabaseError(str(err)) from err
+    @contextlib.asynccontextmanager
+    async def execute(
+        self,
+        query: str | sql.Composable,
+        parameters: dict | None = None,
+        row_class: type[pydantic.BaseModel] | None = None,
+        row_factory: rows.RowFactory = rows.dict_row,
+    ) -> typing.AsyncIterator[psycopg.AsyncCursor]:
+        """Wrapper context manager for making executing queries easier."""
+        async with self.cursor(row_class, row_factory) as cursor:
+            if isinstance(query, sql.Composable):
+                query = query.as_string(cursor)
+            query = re.sub(r'\s+', ' ', query).encode('utf-8')
+            try:
+                await cursor.execute(query, parameters or {})
+                yield cursor
+            except psycopg.DatabaseError as err:
+                raise errors.DatabaseError(str(err)) from err

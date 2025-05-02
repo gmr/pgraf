@@ -77,9 +77,7 @@ class TestNodeModel(unittest.TestCase):
             label='Person', properties={'name': 'John'}, modified_at=None
         )
 
-        # Just verify node.id exists and is a valid UUID string
         self.assertTrue(node.id is not None)
-        # Check UUID is compatible with Python's uuid module by creating a UUID instance from it
         uuid.UUID(str(node.id))
 
         self.assertIsInstance(node.created_at, datetime.datetime)
@@ -239,7 +237,7 @@ class TestTsVectorModel(unittest.TestCase):
         tsvec = models.TsVector(lexemes=lexemes)
 
         self.assertEqual(tsvec.lexemes, lexemes)
-        # The string representation can be in any order, so check each part separately
+        # The string representation can be in any order, check each part
         self.assertIn("'hello':1A,5", str(tsvec))
         self.assertIn("'world':2B", str(tsvec))
 
@@ -284,7 +282,7 @@ class TestTsVectorModel(unittest.TestCase):
 
         string_repr = str(tsvec)
 
-        # Since dictionary order isn't guaranteed, we need to check each part separately
+        # Since dictionary order isn't guaranteed, check each part separately
         self.assertIn("'hello':1A,5", string_repr)
         self.assertIn("'world':2B", string_repr)
 
@@ -332,9 +330,9 @@ class TestDocumentNodeModel(unittest.TestCase):
 
     def test_document_node_model_config(self):
         """Test that the vector field is excluded from the JSON schema."""
-        schema = models.DocumentNode.model_json_schema()
+        _schema = models.DocumentNode.model_json_schema()
 
-        # Check that json_schema_extra exists in model_config and contains exclude
+        # Check that json_schema_extra exists and contains exclude
         self.assertIn('json_schema_extra', models.DocumentNode.model_config)
         self.assertIn(
             'exclude', models.DocumentNode.model_config['json_schema_extra']
