@@ -30,14 +30,9 @@ def _docker_port() -> int:
 
 def postgres_url() -> pydantic.PostgresDsn:
     """Return connection parameters for database in either environment"""
-    host = 'localhost'
-    user = 'postgres'
-    password = 'password'  # noqa: S105
-    if os.environ.get('GITHUB_ACTIONS') == 'true':
-        host = 'postgres'
-        port = 5432
-    else:
-        port = _docker_port()
+    port = (
+        5432 if os.environ.get('GITHUB_ACTIONS') == 'true' else _docker_port()
+    )
     return pydantic.PostgresDsn(
-        f'postgres://{user}:{password}@{host}:{port}/postgres'
+        f'postgres://postgres:password@localhost:{port}/postgres'
     )
