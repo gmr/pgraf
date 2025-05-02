@@ -1,7 +1,9 @@
 import datetime
 import re
+import uuid
 
 import pydantic
+import uuid_utils
 
 
 def current_timestamp() -> datetime.datetime:
@@ -21,3 +23,8 @@ def sanitize(url: str | pydantic.AnyUrl | pydantic.PostgresDsn) -> str:
     """
     pattern = re.compile(r'(\w+?://[^:@]+:)([^@]+)(@)')
     return pattern.sub(r'\1******\3', str(url))
+
+
+def uuidv7() -> uuid.UUID:
+    """Return a UUIDv7 value as a UUID object"""
+    return uuid.UUID(str(uuid_utils.uuid7()))

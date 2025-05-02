@@ -5,7 +5,6 @@ import uuid
 
 import orjson
 import pydantic
-import uuid_utils
 
 from pgraf import utils
 
@@ -35,7 +34,7 @@ class _ModelWithProperties(pydantic.BaseModel):
 class Node(_ModelWithProperties):
     """A node represents an entity or object within the graph model."""
 
-    id: uuid.UUID = pydantic.Field(default_factory=uuid_utils.uuid7)
+    id: uuid.UUID = pydantic.Field(default_factory=utils.uuidv7)
     created_at: datetime.datetime = pydantic.Field(
         default_factory=utils.current_timestamp
     )
