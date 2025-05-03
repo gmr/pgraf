@@ -101,3 +101,22 @@ class GraphTestCase(common.PostgresTestCase):
                 self.assertIsInstance(node, models.ContentNode)
             else:
                 self.assertIsInstance(node, models.Node)
+
+        result = await self.graph.get_nodes(properties={'label': 'foo'})
+        self.assertEqual(len(result), 0)
+
+        result = await self.graph.get_nodes(
+            properties={'label': 'test'}, node_types=['test']
+        )
+        self.assertEqual(len(result), len(data['values']))
+        for node in result:
+            self.assertIsInstance(node, models.Node)
+            self.assertEqual(node.type, 'test')
+
+        result = await self.graph.get_nodes(
+            properties={'label': 'test'}, node_types=['content']
+        )
+        self.assertEqual(len(result), len(data['values']))
+        for node in result:
+            self.assertIsInstance(node, models.Node)
+            self.assertEqual(node.type, 'content')

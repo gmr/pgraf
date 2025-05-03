@@ -93,13 +93,12 @@ class PGraf:
         ]
         where = []
         if properties:
-            where.append(sql.SQL('properties @> %(properties)s::jsonb'))
+            where.append(sql.SQL('properties @> %(properties)s'))
         if node_types:
-            where.append(sql.SQL('type IN %(node_types)s;'))
+            where.append(sql.SQL('type = ANY(%(node_types)s)'))
         if where:
             statement.append(sql.SQL('WHERE '))
             statement.append(sql.SQL(' AND ').join(where))
-        LOGGER.debug('Query: %r', statement)
         async with self._postgres.execute(
             sql.Composed(statement),
             {'properties': json.Jsonb(properties), 'node_types': node_types},
