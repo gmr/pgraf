@@ -110,14 +110,18 @@ class Postgres:
     async def _callproc_columns(
         self, proc_name: str, schema_name: str = 'public'
     ) -> typing.AsyncGenerator[str, None]:
-        """Get the columns for a stored procedure in order"""
+        """Get the columns for a stored procedure in order, expects the
+        convention of _in for an input column name
+
+        """
         async with self.execute(
             queries.PROC_NAMES,
             {'proc_name': proc_name, 'schema_name': schema_name},
         ) as cursor:
             result: dict = await cursor.fetchone()
             for arg in result['proargnames']:
-                yield arg
+                if arg.endswith('_in'):
+                    yield arg[:-3]
 
     async def _callproc_statement(self, proc_name: str) -> sql.Composed:
         """Generate the statement to invoke the stored procedure"""

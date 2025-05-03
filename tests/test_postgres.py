@@ -106,9 +106,9 @@ class PostgresTestCase(common.PostgresTestCase):
         # Create a test procedure with named parameters
         create_proc = """
         CREATE OR REPLACE FUNCTION public.test_proc(
-            param1 TEXT,
-            param2 INT,
-            param3 BOOLEAN
+            param1_in TEXT,
+            param2_in INT,
+            param3_in BOOLEAN
         ) RETURNS VOID AS $$
         BEGIN
             -- Do nothing
