@@ -48,9 +48,7 @@ class Postgres:
 
     @contextlib.asynccontextmanager
     async def cursor(
-        self,
-        row_class: type[pydantic.BaseModel] | None = None,
-        row_factory: RowFactory | None = None,
+        self, row_class: type[pydantic.BaseModel] | None = None
     ) -> abc.AsyncGenerator[AsyncCursor]:
         """Get a cursor for Postgres."""
         if not self._pool:
@@ -61,7 +59,7 @@ class Postgres:
             async with conn.cursor(
                 row_factory=rows.class_row(row_class)
                 if row_class
-                else row_factory or rows.dict_row
+                else rows.dict_row
             ) as cursor:
                 yield cursor
 
@@ -71,10 +69,9 @@ class Postgres:
         query: str | sql.Composable,
         parameters: dict | None = None,
         row_class: type[pydantic.BaseModel] | None = None,
-        row_factory: RowFactory | None = None,
     ) -> typing.AsyncIterator[AsyncCursor]:
         """Wrapper context manager for making executing queries easier."""
-        async with self.cursor(row_class, row_factory) as cursor:
+        async with self.cursor(row_class) as cursor:
             if isinstance(query, sql.Composable):
                 query = query.as_string(cursor)
             composed = re.sub(r'\s+', ' ', query).encode('utf-8')
