@@ -1,5 +1,4 @@
 import datetime
-import re
 import typing
 import uuid
 
@@ -75,51 +74,6 @@ class Embedding(pydantic.BaseModel):
         return value
 
 
-class TsPosition(pydantic.BaseModel):
-    position: int
-    weight: str | None
-
-
-class TsLexeme(pydantic.BaseModel):
-    positions: list[TsPosition]
-
-
-class TsVector(pydantic.BaseModel):
-    lexemes: dict[str, list[TsPosition]] = pydantic.Field(default_factory=dict)
-
-    @pydantic.field_validator('lexemes', mode='before')
-    @classmethod
-    def parse_tsvector(cls, value):
-        if isinstance(value, str):
-            result = {}
-            for match in re.finditer(
-                r"'([^']+)':(\d+[A-D]?(?:,\d+[A-D]?)*)", value
-            ):  # Match each lexeme entry: 'word':positions
-                word, positions_str = match.groups()
-                positions = []
-                for pos_match in positions_str.split(','):
-                    if pos_match[-1] in 'ABCD':
-                        pos, weight = int(pos_match[:-1]), pos_match[-1]
-                    else:
-                        pos, weight = int(pos_match), None
-                    positions.append(TsPosition(position=pos, weight=weight))
-                result[word] = positions
-            return result
-        return value
-
-    def __str__(self):
-        parts = []
-        for word, positions in self.lexemes.items():
-            pos_strs = []
-            for pos in positions:
-                if pos.weight:
-                    pos_strs.append(f'{pos.position}{pos.weight}')
-                else:
-                    pos_strs.append(f'{pos.position}')
-            parts.append(f"'{word}':{','.join(pos_strs)}")
-        return ' '.join(parts)
-
-
 class DocumentNode(pydantic.BaseModel):
     """Provides additional attributes for a document Node type"""
 
@@ -128,6 +82,3 @@ class DocumentNode(pydantic.BaseModel):
     content: str
     type: str | None
     url: str | None
-    vector: str | None = None
-
-    model_config = {'json_schema_extra': {'exclude': ['vector']}}

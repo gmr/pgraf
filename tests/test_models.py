@@ -177,116 +177,6 @@ class TestEmbeddingModel(unittest.TestCase):
             )
 
 
-class TestTsPositionModel(unittest.TestCase):
-    """Test the TsPosition model."""
-
-    def test_tsposition_with_weight(self):
-        """Test TsPosition with position and weight."""
-        pos = models.TsPosition(position=42, weight='A')
-
-        self.assertEqual(pos.position, 42)
-        self.assertEqual(pos.weight, 'A')
-
-    def test_tsposition_without_weight(self):
-        """Test TsPosition with position but no weight."""
-        pos = models.TsPosition(position=42, weight=None)
-
-        self.assertEqual(pos.position, 42)
-        self.assertIsNone(pos.weight)
-
-
-class TestTsLexemeModel(unittest.TestCase):
-    """Test the TsLexeme model."""
-
-    def test_tslexeme_with_positions(self):
-        """Test TsLexeme with positions."""
-        positions = [
-            models.TsPosition(position=1, weight='A'),
-            models.TsPosition(position=2, weight=None),
-        ]
-
-        lexeme = models.TsLexeme(positions=positions)
-
-        self.assertEqual(len(lexeme.positions), 2)
-        self.assertEqual(lexeme.positions[0].position, 1)
-        self.assertEqual(lexeme.positions[0].weight, 'A')
-        self.assertEqual(lexeme.positions[1].position, 2)
-        self.assertIsNone(lexeme.positions[1].weight)
-
-
-class TestTsVectorModel(unittest.TestCase):
-    """Test the TsVector model."""
-
-    def test_tsvector_empty_constructor(self):
-        """Test creating an empty TsVector."""
-        tsvec = models.TsVector()
-
-        self.assertEqual(tsvec.lexemes, {})
-        self.assertEqual(str(tsvec), '')
-
-    def test_tsvector_with_lexemes(self):
-        """Test creating a TsVector with lexemes."""
-        lexemes = {
-            'hello': [
-                models.TsPosition(position=1, weight='A'),
-                models.TsPosition(position=5, weight=None),
-            ],
-            'world': [models.TsPosition(position=2, weight='B')],
-        }
-
-        tsvec = models.TsVector(lexemes=lexemes)
-
-        self.assertEqual(tsvec.lexemes, lexemes)
-        # The string representation can be in any order, check each part
-        self.assertIn("'hello':1A,5", str(tsvec))
-        self.assertIn("'world':2B", str(tsvec))
-
-    def test_parse_tsvector_from_string(self):
-        """Test parsing a TsVector from a Postgres tsvector string."""
-        vector_str = "'hello':1A,5 'world':2B,10C"
-
-        result = models.TsVector.parse_tsvector(vector_str)
-
-        self.assertEqual(len(result), 2)
-        self.assertEqual(len(result['hello']), 2)
-        self.assertEqual(result['hello'][0].position, 1)
-        self.assertEqual(result['hello'][0].weight, 'A')
-        self.assertEqual(result['hello'][1].position, 5)
-        self.assertIsNone(result['hello'][1].weight)
-
-        self.assertEqual(len(result['world']), 2)
-        self.assertEqual(result['world'][0].position, 2)
-        self.assertEqual(result['world'][0].weight, 'B')
-        self.assertEqual(result['world'][1].position, 10)
-        self.assertEqual(result['world'][1].weight, 'C')
-
-    def test_parse_tsvector_non_string(self):
-        """Test parsing a TsVector from a non-string value."""
-        value = {'hello': 'world'}
-
-        result = models.TsVector.parse_tsvector(value)
-
-        self.assertEqual(result, value)
-
-    def test_tsvector_str_representation(self):
-        """Test the string representation of a TsVector."""
-        tsvec = models.TsVector(
-            lexemes={
-                'hello': [
-                    models.TsPosition(position=1, weight='A'),
-                    models.TsPosition(position=5, weight=None),
-                ],
-                'world': [models.TsPosition(position=2, weight='B')],
-            }
-        )
-
-        string_repr = str(tsvec)
-
-        # Since dictionary order isn't guaranteed, check each part separately
-        self.assertIn("'hello':1A,5", string_repr)
-        self.assertIn("'world':2B", string_repr)
-
-
 class TestDocumentNodeModel(unittest.TestCase):
     """Test the DocumentNode model."""
 
@@ -299,7 +189,6 @@ class TestDocumentNodeModel(unittest.TestCase):
             content='This is a test document',
             type=None,
             url=None,
-            vector=None,
         )
 
         self.assertEqual(doc.node, node_id)
@@ -307,7 +196,6 @@ class TestDocumentNodeModel(unittest.TestCase):
         self.assertEqual(doc.content, 'This is a test document')
         self.assertIsNone(doc.type)
         self.assertIsNone(doc.url)
-        self.assertIsNone(doc.vector)
 
     def test_document_node_all_fields(self):
         """Test DocumentNode with all fields."""
@@ -318,7 +206,6 @@ class TestDocumentNodeModel(unittest.TestCase):
             content='This is a test document',
             type='text/plain',
             url='https://example.com/doc',
-            vector='vector data',
         )
 
         self.assertEqual(doc.node, node_id)
@@ -326,18 +213,3 @@ class TestDocumentNodeModel(unittest.TestCase):
         self.assertEqual(doc.content, 'This is a test document')
         self.assertEqual(doc.type, 'text/plain')
         self.assertEqual(doc.url, 'https://example.com/doc')
-        self.assertEqual(doc.vector, 'vector data')
-
-    def test_document_node_model_config(self):
-        """Test that the vector field is excluded from the JSON schema."""
-        _schema = models.DocumentNode.model_json_schema()
-
-        # Check that json_schema_extra exists and contains exclude
-        self.assertIn('json_schema_extra', models.DocumentNode.model_config)
-        self.assertIn(
-            'exclude', models.DocumentNode.model_config['json_schema_extra']
-        )
-        self.assertIn(
-            'vector',
-            models.DocumentNode.model_config['json_schema_extra']['exclude'],
-        )
