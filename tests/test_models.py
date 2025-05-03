@@ -164,35 +164,43 @@ class TestEmbeddingModel(unittest.TestCase):
             )
 
 
-class TestDocumentNodeModel(unittest.TestCase):
-    """Test the DocumentNode model."""
+class TestContentNodeModel(unittest.TestCase):
+    """Test the ContentNode model."""
 
-    def test_document_node_required_fields(self):
+    def test_content_node_required_fields(self):
         node_id = uuid.uuid4()
-        doc = models.DocumentNode(
+        doc = models.ContentNode(
             id=node_id,
             title='Test Document',
             content='This is a test document',
             url=None,
+            source='test',
+            mimetype='text/plain',
         )
         self.assertEqual(doc.id, node_id)
         self.assertEqual(doc.title, 'Test Document')
         self.assertEqual(doc.content, 'This is a test document')
-        self.assertEqual(doc.type, 'document')
+        self.assertEqual(doc.type, 'content')
         self.assertIsNone(doc.url)
+        self.assertEqual(doc.source, 'test')
+        self.assertEqual(doc.mimetype, 'text/plain')
 
-    def test_document_node_all_fields(self):
+    def test_content_node_all_fields(self):
         node_id = uuid.uuid4()
-        doc = models.DocumentNode(
+        doc = models.ContentNode(
             id=node_id,
             title='Test Document',
             content='This is a test document',
             url='https://example.com/doc',
+            source='web',
+            mimetype='text/html',
             properties={'label': 'test'},
         )
         self.assertEqual(doc.id, node_id)
         self.assertEqual(doc.title, 'Test Document')
         self.assertEqual(doc.content, 'This is a test document')
-        self.assertEqual(doc.type, 'document')
+        self.assertEqual(doc.type, 'content')
         self.assertEqual(doc.url, 'https://example.com/doc')
+        self.assertEqual(doc.source, 'web')
+        self.assertEqual(doc.mimetype, 'text/html')
         self.assertDictEqual(doc.properties, {'label': 'test'})

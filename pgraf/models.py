@@ -72,10 +72,12 @@ class Embedding(pydantic.BaseModel):
         return value
 
 
-class DocumentNode(Node):
-    """Provides additional attributes for a document Node type"""
+class ContentNode(Node):
+    """Provides additional attributes for a content Node type"""
 
-    type: str = 'document'
+    type: str = 'content'
     title: str
+    mimetype: str
+    source: str
     content: str
     url: str | None
