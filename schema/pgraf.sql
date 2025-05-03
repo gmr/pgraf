@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE TABLE IF NOT EXISTS embeddings (
     node   UUID          NOT NULL  PRIMARY KEY  REFERENCES nodes(id) ON DELETE CASCADE,
     chunk  INT4          NOT NULL,
-    value  vector(1536)  NOT NULL
+    value  vector(384)  NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS embeddings_embedding_idx

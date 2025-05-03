@@ -157,9 +157,9 @@ class TestEmbeddingModel(unittest.TestCase):
     def test_valid_embedding_length(self):
         """Test Embedding model with valid vector length."""
         node_id = uuid.uuid4()
-        embedding = models.Embedding(node=node_id, chunk=1, value=[0.0] * 1536)
+        embedding = models.Embedding(node=node_id, chunk=1, value=[0.0] * 384)
 
-        self.assertEqual(len(embedding.value), 1536)
+        self.assertEqual(len(embedding.value), 384)
         self.assertEqual(embedding.node, node_id)
         self.assertEqual(embedding.chunk, 1)
 
@@ -170,9 +170,8 @@ class TestEmbeddingModel(unittest.TestCase):
                 models.Embedding(
                     node=uuid.uuid4(), chunk=1, value=[0.0] * size
                 )
-
             self.assertIn(
-                f'Value must have exactly 1536 dimensions, got {size}',
+                f'Value must have exactly 384 dimensions, got {size}',
                 str(context.exception),
             )
 

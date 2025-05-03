@@ -66,10 +66,10 @@ class Embedding(pydantic.BaseModel):
     @pydantic.field_validator('value')
     @classmethod
     def validate_value_length(cls, value: list[float]) -> list[float]:
-        """Validate that the embedding value has exactly 1536 dimensions."""
-        if len(value) != 1536:
+        """Validate that the embedding value has exactly 384 dimensions."""
+        if len(value) != 384:
             raise ValueError(
-                f'Value must have exactly 1536 dimensions, got {len(value)}'
+                f'Value must have exactly 384 dimensions, got {len(value)}'
             )
         return value
 
