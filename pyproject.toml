@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pgraf"
 version = "0.0.0"
-description = "pgraf turns Postgres into a lightning fast property graph engine"
+description = "pgraf turns Postgres into a lightning fast property graph engine for use in AI Agents"
 readme = "README.md"
 requires-python = ">=3.12"
 license = 'BSD-3-clause'

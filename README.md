@@ -1,2 +1,2 @@
 # pgraf
-pgraf turns Postgres into a lightning fast property graph engine
+pgraf turns Postgres into a lightning fast property graph engine for use in AI Agents
