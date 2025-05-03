@@ -67,3 +67,38 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER document_nodes_preprocess BEFORE INSERT OR UPDATE ON document_nodes
   FOR EACH ROW EXECUTE FUNCTION document_node_proprocess();
+
+
+CREATE OR REPLACE FUNCTION add_node(
+    IN id_in UUID,
+    IN created_at_in TIMESTAMP WITH TIME ZONE,
+    IN type_in TEXT,
+    IN properties_in JSONB)
+        RETURNS pgraf.nodes AS $$
+    INSERT INTO pgraf.nodes (id, created_at, type, properties)
+         VALUES (id_in, created_at_in, type_in, properties_in)
+      RETURNING id, created_at, modified_at, type, properties
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION pgraf.get_node(IN id_in UUID)
+                   RETURNS pgraf.nodes AS $$
+    SELECT id, created_at, modified_at, type, properties
+      FROM pgraf.nodes
+     WHERE nodes.id = id_in;
+$$ LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION update_node(
+    IN id_in UUID,
+    IN created_at_in TIMESTAMP WITH TIME ZONE,
+    IN modified_at_in TIMESTAMP WITH TIME ZONE,
+    IN type_in TEXT,
+    IN properties_in JSONB)
+        RETURNS pgraf.nodes AS $$
+    -- Intentionally don't change when the record was created
+    UPDATE pgraf.nodes
+       SET modified_at = modified_at_in,
+           type = type_in,
+           properties = properties_in
+     WHERE id = id_in
+ RETURNING *
+$$ LANGUAGE SQL;
