@@ -11,7 +11,13 @@ from pgraf import utils
 class _ModelWithProperties(pydantic.BaseModel):
     """Base model to auto serialize/deserialize the jsonb field in Postgres"""
 
-    properties: dict[str, typing.Any]
+    created_at: datetime.datetime = pydantic.Field(
+        default_factory=utils.current_timestamp
+    )
+    modified_at: datetime.datetime | None = None
+    properties: dict[str, typing.Any] = pydantic.Field(
+        default_factory=lambda: {}
+    )
 
     @pydantic.model_validator(mode='before')
     @classmethod
@@ -34,10 +40,6 @@ class Node(_ModelWithProperties):
     """A node represents an entity or object within the graph model."""
 
     id: uuid.UUID = pydantic.Field(default_factory=utils.uuidv7)
-    created_at: datetime.datetime = pydantic.Field(
-        default_factory=utils.current_timestamp
-    )
-    modified_at: datetime.datetime | None
     type: str
 
 
@@ -46,10 +48,6 @@ class Edge(_ModelWithProperties):
 
     source: uuid.UUID
     target: uuid.UUID
-    created_at: datetime.datetime = pydantic.Field(
-        default_factory=utils.current_timestamp
-    )
-    modified_at: datetime.datetime | None
     label: str
 
 
@@ -74,11 +72,10 @@ class Embedding(pydantic.BaseModel):
         return value
 
 
-class DocumentNode(pydantic.BaseModel):
+class DocumentNode(Node):
     """Provides additional attributes for a document Node type"""
 
-    node: uuid.UUID
+    type: str = 'document'
     title: str
     content: str
-    type: str | None
     url: str | None
