@@ -9,7 +9,7 @@ import psycopg_pool
 import pydantic
 from psycopg import rows, sql
 
-from pgraf import errors, utils
+from pgraf import errors, queries, utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +45,20 @@ class Postgres:
             LOGGER.debug('Closing connection pool')
             await self._pool.close()
         self._pool = None
+
+    @contextlib.asynccontextmanager
+    async def callproc(
+        self,
+        proc_name: str,
+        parameters: dict | pydantic.BaseModel,
+        row_class: type[pydantic.BaseModel] | None = None,
+    ) -> abc.AsyncGenerator[AsyncCursor]:
+        """Call a stored procedure"""
+        statement = await self._callproc_statement(proc_name)
+        if hasattr(parameters, 'model_dump'):
+            parameters = parameters.model_dump()
+        async with self.execute(statement, parameters, row_class) as cursor:
+            yield cursor
 
     @contextlib.asynccontextmanager
     async def cursor(
@@ -92,3 +106,35 @@ class Postgres:
             )
             await self._pool.open(True, timeout=3.0)
             LOGGER.debug('Connection pool opened')
+
+    async def _callproc_columns(
+        self, proc_name: str, schema_name: str = 'public'
+    ) -> typing.AsyncGenerator[str, None]:
+        """Get the columns for a stored procedure in order"""
+        async with self.execute(
+            queries.PROC_NAMES,
+            {'proc_name': proc_name, 'schema_name': schema_name},
+        ) as cursor:
+            result: dict = await cursor.fetchone()
+            for arg in result['proargnames']:
+                yield arg
+
+    async def _callproc_statement(self, proc_name: str) -> sql.Composed:
+        """Generate the statement to invoke the stored procedure"""
+        schema = 'public'
+        if '.' in proc_name:
+            schema, proc_name = proc_name.split('.')
+        statement: list[str | sql.Identifier | sql.SQL] = [
+            sql.SQL('SELECT * FROM '),
+            sql.Identifier(schema),
+            sql.SQL('.'),
+            sql.Identifier(proc_name),
+            sql.SQL('('),
+        ]
+        async for column in self._callproc_columns(proc_name, schema):
+            statement.append(sql.SQL(f'%({column})s'))  # type: ignore
+            statement.append(sql.SQL(', '))
+        if len(statement) > 5:  # Strip the last ,
+            statement = statement[:-1]
+        statement.append(sql.SQL(')'))
+        return sql.Composed(statement)
