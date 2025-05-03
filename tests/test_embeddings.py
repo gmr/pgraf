@@ -1,11 +1,7 @@
-import pathlib
 import unittest
 
-import yaml
-
 from pgraf import embeddings
-
-DATA_DIR = pathlib.Path(__file__).parent / 'data'
+from tests import common
 
 
 class TestEmbeddings(unittest.TestCase):
@@ -56,8 +52,7 @@ class TestEmbeddings(unittest.TestCase):
         self.assertEqual(result[0], long_sentence)
 
     def test_get_paragrpah(self) -> None:
-        with (DATA_DIR / 'test-embeddings.yaml').open('r') as handle:
-            data = yaml.safe_load(handle)
+        data = common.load_test_data('test-embeddings.yaml')
         result = self.embeddings.get(data['value'])
         self.assertIsInstance(result, list)
         self.assertEqual(len(result[0]), 384)

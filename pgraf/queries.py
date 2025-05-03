@@ -3,6 +3,22 @@ SQL Queries
 ===========
 """
 
+GET_NODES = """
+   SELECT a.id,
+          a.created_at,
+          a.modified_at,
+          a.type,
+          a.properties,
+          b.title,
+          b.source,
+          b.mimetype,
+          b.content,
+          b.url
+     FROM pgraf.nodes AS a
+LEFT JOIN pgraf.content_nodes AS b
+       ON b.node = a.id
+"""
+
 PROC_NAMES = """
     SELECT proargnames
       FROM pg_proc
