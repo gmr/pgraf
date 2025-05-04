@@ -32,7 +32,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.add_node', value, models.Node
         ) as cursor:
-            return await cursor.fetchone()
+            return await cursor.fetchone()  # type: ignore
 
     async def add_content_node(
         self,
@@ -57,7 +57,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.add_content_node', value, models.ContentNode
         ) as cursor:
-            node = await cursor.fetchone()
+            node: models.ContentNode = await cursor.fetchone()  # type: ignore
         await self._upsert_embeddings(node.id, node.content)
         return node
 
@@ -66,7 +66,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.delete_node', {'id': node_id}
         ) as cursor:
-            result = await cursor.fetchone()
+            result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
 
     async def get_node(
@@ -77,7 +77,7 @@ class PGraf:
             'pgraf.get_node', {'id': node_id}
         ) as cursor:
             if cursor.rowcount == 1:
-                data = await cursor.fetchone()
+                data: dict = await cursor.fetchone()  # type: ignore
                 if data['type'] == 'content':
                     return models.ContentNode.model_validate(data)
                 return models.Node.model_validate(data)
@@ -104,8 +104,9 @@ class PGraf:
             sql.Composed(statement),
             {'properties': json.Jsonb(properties), 'node_types': node_types},
         ) as cursor:
-            results = []
-            for row in await cursor.fetchall():
+            results: list[models.Node | models.ContentNode] = []
+            rows: list[dict] = await cursor.fetchall()  # type: ignore
+            for row in rows:
                 if row['type'] == 'content':
                     results.append(models.ContentNode.model_validate(row))
                 else:
@@ -117,7 +118,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.update_node', node, models.Node
         ) as cursor:
-            return await cursor.fetchone()
+            return await cursor.fetchone()  # type: ignore
 
     async def update_content_node(
         self, node: models.ContentNode
@@ -126,7 +127,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.update_content_node', node, models.ContentNode
         ) as cursor:
-            node = await cursor.fetchone()
+            node: models.ContentNode = await cursor.fetchone()  # type: ignore
         await self._upsert_embeddings(node.id, node.content)
         return node
 
@@ -149,14 +150,14 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.add_edge', value, models.Edge
         ) as cursor:
-            return await cursor.fetchone()
+            return await cursor.fetchone()  # type: ignore
 
     async def delete_edge(self, source: uuid.UUID, target: uuid.UUID) -> bool:
         """Remove an edge, severing the relationship between two nodes"""
         async with self._postgres.callproc(
             'pgraf.delete_edge', {'source': source, 'target': target}
         ) as cursor:
-            result = await cursor.fetchone()
+            result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
 
     async def update_edge(self, edge: models.Edge) -> models.Edge:
@@ -164,7 +165,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.update_edge', edge, models.Edge
         ) as cursor:
-            return await cursor.fetchone()
+            return await cursor.fetchone()  # type: ignore
 
     async def search(
         self,
@@ -177,7 +178,7 @@ class PGraf:
         and the edges labels.
 
         """
-        ...
+        return []
 
     async def traverse(
         self,
@@ -187,7 +188,7 @@ class PGraf:
         max_depth: int = 1,
     ) -> list[tuple[models.Node, models.Edge]]:
         """Traverse the graph from a starting node"""
-        ...
+        return []
 
     async def shutdown(self) -> None:
         """Gracefully shutdown any open connections"""
@@ -208,6 +209,6 @@ class PGraf:
                 'pgraf.add_embedding',
                 {'node': node_id, 'chunk': offset, 'value': value},
             ) as cursor:
-                result = await cursor.fetchone()
+                result: dict[str, bool] = await cursor.fetchone()  # type: ignore
                 if not result['success']:
                     raise errors.DatabaseError('Failed to insert embedding')

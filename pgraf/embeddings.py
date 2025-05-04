@@ -15,10 +15,9 @@ class Embeddings:
         """Get embeddings for value passed in"""
         embeddings: list[numpy.ndarray] = []
         for chunk in self._chunk_text(value):
-            result = self.transformer.encode(chunk)
-            # Ensure result is numpy.ndarray
-            if not isinstance(result, numpy.ndarray):
-                result = numpy.array(result, dtype=numpy.float32)
+            result: numpy.ndarray = self.transformer.encode(
+                chunk, convert_to_numpy=True, convert_to_tensor=False
+            )
             embeddings.append(result)
         return embeddings
 

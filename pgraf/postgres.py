@@ -120,7 +120,7 @@ class Postgres:
             queries.PROC_NAMES,
             {'proc_name': proc_name, 'schema_name': schema_name},
         ) as cursor:
-            result: dict = await cursor.fetchone()
+            result: dict[str, typing.Any] = await cursor.fetchone()  # type: ignore
             if not result:
                 raise errors.DatabaseError(
                     f'Failed to fetch stored procedure: '
