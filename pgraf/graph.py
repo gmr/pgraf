@@ -102,7 +102,7 @@ class PGraf:
     async def get_node_types(self) -> list[str]:
         """Retrieve all of the node types in the graph"""
         async with self._postgres.execute(queries.GET_NODE_TYPES) as cursor:
-            return [row['type'] for row in await cursor.fetchall()]
+            return [row['type'] for row in await cursor.fetchall()]  # type: ignore
 
     async def get_nodes(
         self,
@@ -186,7 +186,7 @@ class PGraf:
     async def get_edge_labels(self) -> list[str]:
         """Retrieve all of the edge labels in the graph"""
         async with self._postgres.execute(queries.GET_EDGE_LABELS) as cursor:
-            return [row['label'] for row in await cursor.fetchall()]
+            return [row['label'] for row in await cursor.fetchall()]  # type: ignore
 
     async def update_edge(self, edge: models.Edge) -> models.Edge:
         """Update an edge"""
