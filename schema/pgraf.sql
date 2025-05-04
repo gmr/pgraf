@@ -103,18 +103,20 @@ CREATE INDEX IF NOT EXISTS embeddings_embedding_idx
 CREATE OR REPLACE FUNCTION add_node(
     IN id_in UUID,
     IN created_at_in TIMESTAMP WITH TIME ZONE,
+    IN modified_at_in TIMESTAMP WITH TIME ZONE,
     IN type_in TEXT,
     IN properties_in JSONB)
     RETURNS SETOF pgraf.nodes AS
 $$
-INSERT INTO pgraf.nodes (id, created_at, type, properties)
-     VALUES (id_in, created_at_in, type_in, properties_in)
+INSERT INTO pgraf.nodes (id, created_at, modified_at, type, properties)
+     VALUES (id_in, created_at_in, modified_at_in, type_in, properties_in)
   RETURNING id, created_at, modified_at, type, properties
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION add_content_node(
     IN id_in UUID,
     IN created_at_in TIMESTAMP WITH TIME ZONE,
+    IN modified_at_in TIMESTAMP WITH TIME ZONE,
     IN type_in TEXT,
     IN properties_in JSONB,
     IN title_in TEXT,
@@ -135,8 +137,8 @@ CREATE OR REPLACE FUNCTION add_content_node(
 )
 AS $$
 BEGIN
-    INSERT INTO pgraf.nodes(id, created_at, type, properties)
-         VALUES (id_in, created_at_in, type_in, properties_in)
+    INSERT INTO pgraf.nodes(id, created_at, modified_at, type, properties)
+         VALUES (id_in, created_at_in, modified_at_in, type_in, properties_in)
       RETURNING nodes.id, nodes.created_at, nodes.modified_at, nodes.type, nodes.properties
            INTO id, created_at, modified_at, type, properties;
 

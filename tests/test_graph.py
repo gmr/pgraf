@@ -183,3 +183,9 @@ class GraphTestCase(common.PostgresTestCase):
         self.assertEqual(len(results), 5)
         for result in results:
             self.assertIsInstance(result, models.ContentNode)
+
+        results = await self.graph.get_node_types()
+        self.assertListEqual(results, ['content', 'test'])
+
+        results = await self.graph.get_edge_labels()
+        self.assertListEqual(results, ['test'])

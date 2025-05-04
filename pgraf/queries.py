@@ -8,6 +8,18 @@ DELETE FROM pgraf.embeddings
       WHERE node = %(node)s
 """
 
+GET_EDGE_LABELS = """
+  SELECT DISTINCT label
+    FROM pgraf.edges
+ORDER BY label;
+"""
+
+GET_NODE_TYPES = """
+  SELECT DISTINCT type
+    FROM pgraf.nodes
+ORDER BY type;
+"""
+
 GET_NODES = """
    SELECT a.id,
           a.created_at,
