@@ -68,7 +68,7 @@ dev = [
 plugins = ['pydantic.mypy']
 
 [[tool.mypy.overrides]]
-module = ["pgvector.psycopg.*"]
+module = ["pgvector.psycopg.*", "sentence_transformers.*"]
 follow_untyped_imports = true
 
 [tool.ruff]
