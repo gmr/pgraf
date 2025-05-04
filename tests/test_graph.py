@@ -178,3 +178,8 @@ class GraphTestCase(common.PostgresTestCase):
         for _, _ in await self.graph.traverse(nodes[0].id, ['test', 'foo']):
             depth += 1
         self.assertEqual(depth, 1)  # Shouldnt get to 2nd node
+
+        results = await self.graph.search('How do we use slack?')
+        self.assertEqual(len(results), 5)
+        for result in results:
+            self.assertIsInstance(result, models.ContentNode)

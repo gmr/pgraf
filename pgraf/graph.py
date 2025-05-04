@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+import psycopg
 import pydantic
 from psycopg import sql
 from psycopg.types import json
@@ -104,14 +105,7 @@ class PGraf:
             sql.Composed(statement),
             {'properties': json.Jsonb(properties), 'node_types': node_types},
         ) as cursor:
-            results: list[NodeType] = []
-            rows: list[dict] = await cursor.fetchall()  # type: ignore
-            for row in rows:
-                if row['type'] == 'content':
-                    results.append(models.ContentNode.model_validate(row))
-                else:
-                    results.append(models.Node.model_validate(row))
-        return results
+            return await self._process_node_results(cursor)
 
     async def update_node(self, node: models.Node) -> models.Node:
         """Update a node"""
@@ -181,13 +175,30 @@ class PGraf:
         query: str,
         properties: dict | None = None,
         node_types: list[str] | None = None,
-        edge_labels: list[str] | None = None,
+        similarity_threshold: float = 0.1,
+        limit: int = 10,
     ) -> list:
-        """Search the graph, optionally filtering by properties, node types,
-        and the edges labels.
+        """Search the content nodes in the graph, optionally filtering by
+        properties, node types, and the edges labels.
 
         """
-        return []
+        vector = self._embeddings.get(query)
+        if len(vector) > 1:
+            LOGGER.warning(
+                'Search text embeddings returned %i vector arrays', len(vector)
+            )
+        async with self._postgres.callproc(
+            'pgraf.search',
+            {
+                'query': query,
+                'embeddings': vector[0],
+                'properties': json.Jsonb(properties) if properties else None,
+                'node_types': node_types,
+                'similarity': similarity_threshold,
+                'limit': limit,
+            },
+        ) as cursor:
+            return await self._process_node_results(cursor)
 
     async def traverse(
         self,
@@ -229,6 +240,18 @@ class PGraf:
     async def shutdown(self) -> None:
         """Gracefully shutdown any open connections"""
         await self._postgres.shutdown()
+
+    async def _process_node_results(
+        self, cursor: psycopg.AsyncCursor
+    ) -> list[NodeType]:
+        results: list[NodeType] = []
+        rows: list[dict] = await cursor.fetchall()  # type: ignore
+        for row in rows:
+            if row['type'] == 'content':
+                results.append(models.ContentNode.model_validate(row))
+            else:
+                results.append(models.Node.model_validate(row))
+        return results
 
     async def _upsert_embeddings(
         self, node_id: uuid.UUID, content: str

@@ -441,3 +441,74 @@ BEGIN
     SELECT * FROM traversal;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION pgraf.search(
+    query_in TEXT,
+    embeddings_in vector(384),
+    properties_in JSONB DEFAULT NULL,
+    node_types_in TEXT[] DEFAULT NULL,
+    similarity_in FLOAT4 DEFAULT 0.5,
+    limit_in INT4 DEFAULT 100,
+    OUT id UUID,
+    OUT created_at TIMESTAMP WITH TIME ZONE,
+    OUT modified_at TIMESTAMP WITH TIME ZONE,
+    OUT type TEXT,
+    OUT properties JSONB,
+    OUT title TEXT,
+    OUT source TEXT,
+    OUT mimetype TEXT,
+    OUT content TEXT,
+    OUT url TEXT,
+    OUT similarity FLOAT4
+) RETURNS SETOF RECORD AS $$
+    WITH embedding_matches AS (
+        SELECT e.node,
+               max(CAST(1 - (e.value <=> embeddings_in) AS float)) as similarity
+          FROM pgraf.embeddings AS e
+          JOIN pgraf.nodes AS n
+            ON n.id = e.node
+         WHERE vector_dims(e.value) = vector_dims(embeddings_in)
+           AND 1 - (e.value <=> embeddings_in) > similarity_in
+           AND (node_types_in IS NULL OR n.type = ANY(node_types_in))
+           AND (properties_in IS NULL OR n.properties @> properties_in)
+      GROUP BY e.node
+      ORDER BY similarity DESC
+         LIMIT limit_in),
+    text_matches AS (
+        SELECT n.id AS node,
+               ts_rank_cd(c.vector, plainto_tsquery(query_in)) AS similarity
+          FROM pgraf.nodes AS n
+          JOIN pgraf.content_nodes AS c
+            ON c.node = n.id
+         WHERE c.vector @@ plainto_tsquery(query_in)
+           AND ts_rank_cd(c.vector, plainto_tsquery(query_in)) > similarity_in
+           AND (node_types_in IS NULL OR n.type = ANY(node_types_in))
+           AND (properties_in IS NULL OR n.properties @> properties_in)
+      ORDER BY similarity DESC
+         LIMIT limit_in),
+     combined_results AS (
+        SELECT COALESCE(em.node, tm.node) AS node,
+               GREATEST(COALESCE(tm.similarity, 0), COALESCE(em.similarity, 0))  AS similarity
+          FROM embedding_matches em
+          FULL OUTER JOIN text_matches tm ON em.node = tm.node
+      ORDER BY similarity DESC
+         LIMIT 100)
+       SELECT n.id,
+              n.created_at,
+              n.modified_at,
+              n.type,
+              n.properties,
+              c.title,
+              c.source,
+              c.mimetype,
+              c.content,
+              c.url,
+              cr.similarity
+         FROM combined_results AS cr
+         JOIN pgraf.nodes AS n
+           ON n.id = cr.node
+    LEFT JOIN pgraf.content_nodes AS c
+           ON c.node = n.id
+     ORDER BY cr.similarity DESC
+        LIMIT limit_in
+$$ LANGUAGE sql;
