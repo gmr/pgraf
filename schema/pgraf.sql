@@ -87,9 +87,10 @@ CREATE TRIGGER check_bidirectional_edges
 
 CREATE TABLE IF NOT EXISTS embeddings
 (
-    node  UUID        NOT NULL PRIMARY KEY REFERENCES nodes (id) ON DELETE CASCADE,
+    node  UUID        NOT NULL  REFERENCES nodes (id) ON DELETE CASCADE,
     chunk INT4        NOT NULL,
-    value vector(384) NOT NULL
+    value vector(384) NOT NULL,
+    PRIMARY KEY (node, chunk)
 );
 
 CREATE INDEX IF NOT EXISTS embeddings_embedding_idx
@@ -139,9 +140,9 @@ BEGIN
       RETURNING nodes.id, nodes.created_at, nodes.modified_at, nodes.type, nodes.properties
            INTO id, created_at, modified_at, type, properties;
 
-    INSERT INTO pgraf.content_nodes(node, title, source, mimetype, content, url)
+    INSERT INTO pgraf.content_nodes(node, title, source, mimetype, content, url, vector)
          VALUES (id, title_in, source_in, mimetype_in,
-                 content_in, url_in);
+                 content_in, url_in, '');
 
     -- Set output variables for content_nodes fields
     title := title_in;
@@ -313,4 +314,18 @@ $$
     WHERE (source = source_in AND target = target_in)
        OR (source = target_in AND target = source_in)
 RETURNING *
+$$ LANGUAGE SQL;
+
+
+CREATE OR REPLACE FUNCTION add_embedding(
+    IN node_in UUID,
+    IN chunk_in INT4,
+    IN value_in vector(384),
+    OUT success BOOL) AS
+$$
+    WITH inserted AS (
+        INSERT INTO pgraf.embeddings (node, chunk, value)
+             VALUES (node_in, chunk_in, value_in)
+          RETURNING node, chunk)
+    SELECT EXISTS (SELECT 1 FROM inserted) AS success;
 $$ LANGUAGE SQL;

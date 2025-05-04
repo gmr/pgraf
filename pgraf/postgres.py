@@ -7,6 +7,7 @@ from collections import abc
 import psycopg
 import psycopg_pool
 import pydantic
+from pgvector.psycopg import register_vector_async
 from psycopg import rows, sql
 
 from pgraf import errors, queries, utils
@@ -34,6 +35,7 @@ class Postgres:
             max_size=pool_max_size,
             min_size=pool_min_size,
             open=False,
+            configure=self._configure_vector,
         )
 
     async def shutdown(self) -> None:
@@ -119,6 +121,11 @@ class Postgres:
             {'proc_name': proc_name, 'schema_name': schema_name},
         ) as cursor:
             result: dict = await cursor.fetchone()
+            if not result:
+                raise errors.DatabaseError(
+                    f'Failed to fetch stored procedure: '
+                    f'{schema_name}.{proc_name}'
+                )
             for arg in result['proargnames']:
                 if arg.endswith('_in'):
                     yield arg[:-3]
@@ -142,3 +149,7 @@ class Postgres:
             statement = statement[:-1]
         statement.append(sql.SQL(')'))
         return sql.Composed(statement)
+
+    @staticmethod
+    async def _configure_vector(conn: psycopg.AsyncConnection) -> None:
+        await register_vector_async(conn)

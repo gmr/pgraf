@@ -3,6 +3,11 @@ SQL Queries
 ===========
 """
 
+DELETE_EMBEDDINGS = """
+DELETE FROM pgraf.embeddings
+      WHERE node = %(node)s
+"""
+
 GET_NODES = """
    SELECT a.id,
           a.created_at,

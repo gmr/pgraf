@@ -5,7 +5,7 @@ import pydantic
 from psycopg import sql
 from psycopg.types import json
 
-from pgraf import embeddings, models, postgres, queries
+from pgraf import embeddings, errors, models, postgres, queries
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,9 +18,8 @@ class PGraf:
         url: pydantic.PostgresDsn,
         pool_min_size: int = 1,
         pool_max_size: int = 10,
-        openapi_api_key: str | None = None,
     ) -> None:
-        self._embeddings = embeddings.Embeddings(openapi_api_key)
+        self._embeddings = embeddings.Embeddings()
         self._postgres = postgres.Postgres(url, pool_min_size, pool_max_size)
 
     async def add_node(
@@ -58,7 +57,9 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.add_content_node', value, models.ContentNode
         ) as cursor:
-            return await cursor.fetchone()
+            node = await cursor.fetchone()
+        await self._upsert_embeddings(node.id, node.content)
+        return node
 
     async def delete_node(self, node_id: uuid.UUID) -> bool:
         """Retrieve a node by ID"""
@@ -125,7 +126,9 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.update_content_node', node, models.ContentNode
         ) as cursor:
-            return await cursor.fetchone()
+            node = await cursor.fetchone()
+        await self._upsert_embeddings(node.id, node.content)
+        return node
 
     async def add_edge(
         self,
@@ -189,3 +192,22 @@ class PGraf:
     async def shutdown(self) -> None:
         """Gracefully shutdown any open connections"""
         await self._postgres.shutdown()
+
+    async def _upsert_embeddings(
+        self, node_id: uuid.UUID, content: str
+    ) -> None:
+        """Chunk the content and write the embeddings"""
+        async with self._postgres.execute(
+            queries.DELETE_EMBEDDINGS, {'node': node_id}
+        ) as cursor:
+            LOGGER.debug(
+                'Deleted %i stale embeddings for %s', cursor.rowcount, node_id
+            )
+        for offset, value in enumerate(self._embeddings.get(content)):
+            async with self._postgres.callproc(
+                'pgraf.add_embedding',
+                {'node': node_id, 'chunk': offset, 'value': value},
+            ) as cursor:
+                result = await cursor.fetchone()
+                if not result['success']:
+                    raise errors.DatabaseError('Failed to insert embedding')

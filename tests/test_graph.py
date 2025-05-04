@@ -1,6 +1,6 @@
 import uuid
 
-from pgraf import graph, models, postgres
+from pgraf import embeddings, graph, models, postgres
 from tests import common
 
 
@@ -117,6 +117,16 @@ class GraphTestCase(common.PostgresTestCase):
             properties={'label': 'test'}, node_types=['content']
         )
         self.assertEqual(len(result), len(data['values']))
+
+        obj = embeddings.Embeddings()
+        query = 'SELECT count(*) FROM pgraf.embeddings WHERE node = %(node)s'
+
         for node in result:
             self.assertIsInstance(node, models.Node)
             self.assertEqual(node.type, 'content')
+            async with self.postgres.execute(
+                query, {'node': node.id}
+            ) as cursor:
+                temp = await cursor.fetchone()
+            length = len(obj.get(node.content))
+            self.assertEqual(temp['count'], length)
