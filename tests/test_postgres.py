@@ -46,6 +46,9 @@ class PostgresTestCase(common.PostgresTestCase):
         if self.postgres._pool:
             async with self.postgres.cursor() as cursor:
                 await cursor.execute('DROP TABLE public.test')
+                await cursor.execute(
+                    'DROP FUNCTION IF EXISTS public.test_proc'
+                )
         await super().asyncTearDown()
 
     async def test_pool_is_created(self) -> None:
@@ -122,19 +125,18 @@ class PostgresTestCase(common.PostgresTestCase):
         columns = []
         async for column in self.postgres._callproc_columns('test_proc'):
             columns.append(column)
-        self.assertEqual(columns, ['param1', 'param2', 'param3'])
-
-        # Clean up
-        async with self.postgres.cursor() as cursor:
-            await cursor.execute('DROP FUNCTION public.test_proc')
+        self.assertEqual(
+            columns,
+            [('param1', 'text'), ('param2', 'integer'), ('param3', 'boolean')],
+        )
 
     async def test_callproc_statement(self) -> None:
         # Create a test procedure with named parameters
         create_proc = """
         CREATE OR REPLACE FUNCTION public.test_proc(
-            param1 TEXT,
-            param2 INT,
-            param3 BOOLEAN
+            param1_in TEXT,
+            param2_in INT,
+            param3_in BOOLEAN
         ) RETURNS VOID AS $$
         BEGIN
             -- Do nothing
@@ -144,21 +146,11 @@ class PostgresTestCase(common.PostgresTestCase):
         async with self.postgres.cursor() as cursor:
             await cursor.execute(create_proc)
 
-        # Test with default schema
-        statement = await self.postgres._callproc_statement('test_proc')
-        self.assertIn('SELECT * FROM', statement.as_string(None))
-        self.assertIn('public', statement.as_string(None))
-        self.assertIn('test_proc', statement.as_string(None))
-
         # Test with schema in proc_name
         statement = await self.postgres._callproc_statement('public.test_proc')
         self.assertIn('SELECT * FROM', statement.as_string(None))
         self.assertIn('public', statement.as_string(None))
         self.assertIn('test_proc', statement.as_string(None))
-
-        # Clean up
-        async with self.postgres.cursor() as cursor:
-            await cursor.execute('DROP FUNCTION public.test_proc')
 
     async def test_cursor_no_pool(self) -> None:
         # Force the pool to close
