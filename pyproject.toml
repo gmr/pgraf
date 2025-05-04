@@ -27,6 +27,7 @@ dependencies = [
     "pgvector>=0.4.1,<5",
     "psycopg[pool]>=3.2.4,<4",
     "pydantic>=2.11.3,<3",
+    "sentence_transformers>4.1.0,<5",
     "uuid_utils>=0.10.0,<0.11.0"
 ]
 
@@ -68,7 +69,7 @@ dev = [
 plugins = ['pydantic.mypy']
 
 [[tool.mypy.overrides]]
-module = ["pgvector.psycopg.*", "sentence_transformers.*"]
+module = ["pgvector.psycopg.*"]
 follow_untyped_imports = true
 
 [tool.ruff]
