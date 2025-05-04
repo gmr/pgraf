@@ -13,14 +13,35 @@ pgraf turns PostgreSQL into a property graph engine with typed models and vector
 * Type checking: `mypy pgraf tests`
 
 ## Style Guidelines
-* Python 3.12+ with strict typing
-* PEP-8 with 79 character line length
+* Python 3.12+ with strict typing (requires Python 3.12+)
+* PEP-8 with 79 character line length (enforced by ruff)
 * Single quotes for strings, double quotes for docstrings
 * Google-style docstrings with Args/Returns sections
-* Import order: stdlib → third-party → local, alphabetized within groups
-* Type annotations everywhere, validated with mypy + pydantic plugin
-* Exception handling: raise specific exceptions with descriptive messages
-* Function naming: snake_case, class naming: CapWords
-* Test files must be named test_*.py and use unittest framework
-* Database operations use psycopg3 with async pool patterns
-* SQL should use proper typing with parameters passed via sql.Identifier/sql.Literal
+* Import patterns:
+  - Import order: stdlib → third-party → local, alphabetized within groups
+  - Import modules rather than individual classes or functions
+  - Use explicit imports (no star imports)
+  - Group imports with blank lines between categories
+* Type annotations:
+  - Type annotations on all functions, parameters, and return values
+  - Use pydantic models for validating complex data structures
+  - Use type hints from `typing` module extensively
+  - Support for generic types, TypeVar, and Union types
+* Exception handling:
+  - Raise specific exceptions with descriptive messages
+  - Custom exceptions should inherit from standard exceptions
+* Naming conventions:
+  - Function naming: snake_case
+  - Class naming: CapWords
+  - Constants: UPPER_CASE
+* Testing:
+  - Test files must be named test_*.py and use unittest framework
+  - Use specific assertions (assertEqual, assertIsInstance, etc.)
+* Database operations:
+  - Use psycopg3 with async pool patterns
+  - Use context managers for database operations
+  - SQL should use proper typing with parameters via sql.Identifier/sql.Literal
+* Asynchronous patterns:
+  - Use async/await for database operations
+  - Use contextlib.asynccontextmanager for async context managers
+  - Use proper typing with AsyncGenerator and AsyncIterator

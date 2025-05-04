@@ -67,6 +67,10 @@ dev = [
 [tool.mypy]
 plugins = ['pydantic.mypy']
 
+[[tool.mypy.overrides]]
+module = ["pgvector.psycopg.*"]
+follow_untyped_imports = true
+
 [tool.ruff]
 line-length = 79
 respect-gitignore = true
