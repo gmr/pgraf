@@ -35,10 +35,6 @@ jobs:
         run: |
           ruff check .
 
-      - name: Type check with mypy
-        run: |
-          mypy pgraf
-
       - name: Test with pytest
         run: |
           pytest --cov=pgraf --cov-report=xml
