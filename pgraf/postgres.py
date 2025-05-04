@@ -111,7 +111,7 @@ class Postgres:
 
     async def _callproc_columns(
         self, proc_name: str, schema_name: str = 'public'
-    ) -> typing.AsyncGenerator[str, None]:
+    ) -> typing.AsyncGenerator[tuple[str, str | None], None]:
         """Get the columns for a stored procedure in order, expects the
         convention of _in for an input column name
 
@@ -120,15 +120,17 @@ class Postgres:
             queries.PROC_NAMES,
             {'proc_name': proc_name, 'schema_name': schema_name},
         ) as cursor:
-            result: dict[str, typing.Any] = await cursor.fetchone()  # type: ignore
-            if not result:
+            if not cursor.rowcount:
                 raise errors.DatabaseError(
                     f'Failed to fetch stored procedure: '
                     f'{schema_name}.{proc_name}'
                 )
-            for arg in result['proargnames']:
-                if arg.endswith('_in'):
-                    yield arg[:-3]
+            result: list[dict] = await cursor.fetchall()  # type: ignore
+            for row in result:
+                if row['arg_type'] == 'vector':
+                    yield row['arg_name'], None
+                else:
+                    yield row['arg_name'], row['arg_type']
 
     async def _callproc_statement(self, proc_name: str) -> sql.Composed:
         """Generate the statement to invoke the stored procedure"""
@@ -142,8 +144,11 @@ class Postgres:
             sql.Identifier(proc_name),
             sql.SQL('('),
         ]
-        async for column in self._callproc_columns(proc_name, schema):
-            statement.append(sql.SQL(f'%({column})s'))  # type: ignore
+        async for name, col_type in self._callproc_columns(proc_name, schema):
+            if col_type is None:
+                statement.append(sql.SQL(f'%({name})s'))  # type: ignore
+            else:
+                statement.append(sql.SQL(f'%({name})s::{col_type}'))  # type: ignore
             statement.append(sql.SQL(', '))
         if len(statement) > 5:  # Strip the last ,
             statement = statement[:-1]

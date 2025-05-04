@@ -25,9 +25,17 @@ LEFT JOIN pgraf.content_nodes AS b
 """
 
 PROC_NAMES = """
-    SELECT proargnames
-      FROM pg_proc
-      JOIN pg_namespace ON pg_proc.pronamespace = pg_namespace.oid
-     WHERE pg_proc.proname = %(proc_name)s
-       AND pg_namespace.nspname = %(schema_name)s
+SELECT REPLACE(arg_name, '_in', '') AS arg_name,
+       arg_type
+FROM (
+   SELECT unnest(p.proargnames) AS arg_name,
+          format_type(unnest(p.proargtypes), NULL) AS arg_type,
+          array_position(p.proargnames, unnest(p.proargnames)) AS pos
+    FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+   WHERE p.proname = %(proc_name)s
+     AND n.nspname = %(schema_name)s
+) subq
+WHERE arg_name LIKE '%%_in'
+ORDER BY pos;
 """
