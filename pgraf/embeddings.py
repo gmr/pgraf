@@ -1,5 +1,6 @@
 import re
 
+import numpy
 import sentence_transformers
 
 DEFAULT_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'
@@ -10,12 +11,15 @@ class Embeddings:
     def __init__(self, model: str = DEFAULT_MODEL) -> None:
         self.transformer = sentence_transformers.SentenceTransformer(model)
 
-    def get(self, value: str) -> list[list[float]]:
+    def get(self, value: str) -> list[numpy.ndarray]:
         """Get embeddings for value passed in"""
-        embeddings = []
+        embeddings: list[numpy.ndarray] = []
         for chunk in self._chunk_text(value):
             result = self.transformer.encode(chunk)
-            embeddings.append([float(vector) for vector in result])
+            # Ensure result is numpy.ndarray
+            if not isinstance(result, numpy.ndarray):
+                result = numpy.array(result, dtype=numpy.float32)
+            embeddings.append(result)
         return embeddings
 
     @staticmethod
@@ -26,7 +30,9 @@ class Embeddings:
 
         sentences = SENTENCE_PATTERN.split(text)
         word_counts = [len(sentence.split()) for sentence in sentences]
-        chunks, current, cwc = [], [], 0
+        chunks: list[str] = []
+        current: list[str] = []
+        cwc = 0
         for i, sentence in enumerate(sentences):
             word_count = word_counts[i]
             if cwc + word_count > max_words and cwc > 0:

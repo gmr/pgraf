@@ -55,5 +55,19 @@ class TestEmbeddings(unittest.TestCase):
         data = common.load_test_data('test-embeddings.yaml')
         result = self.embeddings.get(data['value'])
         self.assertIsInstance(result, list)
+
+        # Check that result is a list of numpy arrays
+        import numpy
+
+        self.assertIsInstance(result[0], numpy.ndarray)
         self.assertEqual(len(result[0]), 384)
-        self.assertEqual(result, data['expectation'])
+
+        # Convert expectation data to numpy arrays for comparison
+        expected = [numpy.array(chunk) for chunk in data['expectation']]
+
+        # Compare each array in the result with the expected arrays
+        self.assertEqual(len(result), len(expected))
+        for _i, (res_array, exp_array) in enumerate(
+            zip(result, expected, strict=False)
+        ):
+            numpy.testing.assert_array_equal(res_array, exp_array)
