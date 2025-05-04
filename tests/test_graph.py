@@ -130,3 +130,51 @@ class GraphTestCase(common.PostgresTestCase):
                 temp = await cursor.fetchone()
             length = len(obj.get(node.content))
             self.assertEqual(temp['count'], length)
+
+    async def test_get_nodes_and_edges(self) -> None:
+        data = common.load_test_data('test-content-nodes.yaml')
+        nodes = []
+        for value in data['values']:
+            nodes.append(await self.graph.add_node('test', {'label': 'test'}))
+            nodes.append(
+                await self.graph.add_content_node(
+                    title=str(uuid.uuid4()),
+                    content=value,
+                    mimetype='text/plain',
+                    source='test',
+                    url='https://example.com',
+                    properties={'label': 'test'},
+                )
+            )
+
+        for offset in range(len(nodes)):
+            if offset < len(nodes) - 1:
+                result = await self.graph.add_edge(
+                    nodes[offset].id, nodes[offset + 1].id, 'test'
+                )
+                self.assertIsInstance(result, models.Edge)
+
+        edge = await self.graph.get_edge(nodes[0].id, nodes[1].id)
+        self.assertIsInstance(edge, models.Edge)
+        edge.label = 'foo'
+        result = await self.graph.update_edge(edge)
+        self.assertEqual(result.label, 'foo')
+        depth = 0
+        for node_value, edge_value in await self.graph.traverse(
+            nodes[0].id, ['test', 'foo']
+        ):
+            depth += 1
+            if node_value.type == 'content':
+                self.assertIsInstance(node_value, models.ContentNode)
+            else:
+                self.assertIsInstance(node_value, models.Node)
+            if edge_value is not None:
+                self.assertIsInstance(edge_value, models.Edge)
+        self.assertEqual(depth, len(nodes))
+
+        result = await self.graph.delete_edge(nodes[0].id, nodes[1].id)
+        self.assertTrue(result)
+        depth = 0
+        for _, _ in await self.graph.traverse(nodes[0].id, ['test', 'foo']):
+            depth += 1
+        self.assertEqual(depth, 1)  # Shouldnt get to 2nd node

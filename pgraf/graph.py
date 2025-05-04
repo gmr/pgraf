@@ -9,6 +9,8 @@ from pgraf import embeddings, errors, models, postgres, queries
 
 LOGGER = logging.getLogger(__name__)
 
+NodeType = models.ContentNode | models.Node
+
 
 class PGraf:
     """Manage and Search the Graph"""
@@ -69,9 +71,7 @@ class PGraf:
             result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
 
-    async def get_node(
-        self, node_id: uuid.UUID
-    ) -> models.Node | models.ContentNode | None:
+    async def get_node(self, node_id: uuid.UUID) -> NodeType | None:
         """Retrieve a node by ID"""
         async with self._postgres.callproc(
             'pgraf.get_node', {'id': node_id}
@@ -87,7 +87,7 @@ class PGraf:
         self,
         properties: dict | None = None,
         node_types: list[str] | None = None,
-    ) -> list[models.Node | models.ContentNode]:
+    ) -> list[NodeType]:
         """Get all nodes matching the criteria"""
         statement: list[str | sql.Composable] = [
             sql.SQL(queries.GET_NODES.strip() + ' ')  # type: ignore
@@ -104,7 +104,7 @@ class PGraf:
             sql.Composed(statement),
             {'properties': json.Jsonb(properties), 'node_types': node_types},
         ) as cursor:
-            results: list[models.Node | models.ContentNode] = []
+            results: list[NodeType] = []
             rows: list[dict] = await cursor.fetchall()  # type: ignore
             for row in rows:
                 if row['type'] == 'content':
@@ -144,7 +144,7 @@ class PGraf:
                 'source': source,
                 'target': target,
                 'label': label,
-                'properties': properties,
+                'properties': properties or {},
             }
         )
         async with self._postgres.callproc(
@@ -159,6 +159,15 @@ class PGraf:
         ) as cursor:
             result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
+
+    async def get_edge(
+        self, source: uuid.UUID, target: uuid.UUID
+    ) -> models.Edge:
+        """Add an edge, linking two nodes in the graph"""
+        async with self._postgres.callproc(
+            'pgraf.get_edge', {'source': source, 'target': target}, models.Edge
+        ) as cursor:
+            return await cursor.fetchone()  # type: ignore
 
     async def update_edge(self, edge: models.Edge) -> models.Edge:
         """Update an edge"""
@@ -185,10 +194,37 @@ class PGraf:
         start_node: uuid.UUID,
         edge_labels: list[str] | None = None,
         direction: str = 'outgoing',
-        max_depth: int = 1,
-    ) -> list[tuple[models.Node, models.Edge]]:
+        max_depth: int = 100,
+    ) -> list[tuple[NodeType, models.Edge | None]]:
         """Traverse the graph from a starting node"""
-        return []
+        results = []
+        async with self._postgres.callproc(
+            'pgraf.traverse',
+            {
+                'start_node': start_node,
+                'direction': direction,
+                'max_depth': max_depth,
+                'edge_labels': edge_labels or [],
+            },
+        ) as cursor:
+            rows: list[dict] = await cursor.fetchall()  # type: ignore
+            for row in rows:
+                edge_dict, node_dict = {}, {}
+                for key, value in row.items():
+                    if key.startswith('edge_') and value is not None:
+                        edge_dict[key[5:]] = value
+                    elif key.startswith('node_'):
+                        node_dict[key[5:]] = value
+                edge: models.Edge | None = None
+                if edge_dict:
+                    edge = models.Edge.model_validate(edge_dict)
+                node: NodeType
+                if node_dict['type'] == 'content':
+                    node = models.ContentNode.model_validate(node_dict)
+                else:
+                    node = models.Node.model_validate(node_dict)
+                results.append((node, edge))
+        return results
 
     async def shutdown(self) -> None:
         """Gracefully shutdown any open connections"""

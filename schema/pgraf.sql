@@ -270,10 +270,16 @@ CREATE OR REPLACE FUNCTION add_edge(
     IN properties_in JSONB)
     RETURNS SETOF pgraf.edges AS
 $$
-INSERT INTO pgraf.edges (source, target, created_at, label, properties)
-     VALUES (source_in, target_in, created_at_in, label_in, properties_in)
-  RETURNING source, target, created_at, modified_at, label, properties
-$$ LANGUAGE SQL;
+BEGIN
+    IF source_in = target_in THEN
+        RAISE EXCEPTION 'Source % and Target are the same node', source_in;
+    END IF;
+    RETURN QUERY
+    INSERT INTO pgraf.edges (source, target, created_at, label, properties)
+         VALUES (source_in, target_in, created_at_in, label_in, properties_in)
+      RETURNING source, target, created_at, modified_at, label, properties;
+END
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION pgraf.delete_edge(
@@ -329,3 +335,109 @@ $$
           RETURNING node, chunk)
     SELECT EXISTS (SELECT 1 FROM inserted) AS success;
 $$ LANGUAGE SQL;
+
+
+CREATE OR REPLACE FUNCTION pgraf.traverse(
+    start_node_in UUID,
+    edge_labels_in TEXT[] DEFAULT NULL,
+    direction_in TEXT DEFAULT 'outgoing',
+    max_depth_in INTEGER DEFAULT 1
+)
+RETURNS TABLE (
+    node_id UUID,
+    node_created_at TIMESTAMP WITH TIME ZONE,
+    node_modified_at TIMESTAMP WITH TIME ZONE,
+    node_type TEXT,
+    node_properties JSONB,
+    node_title TEXT,
+    node_source TEXT,
+    node_mimetype TEXT,
+    node_content TEXT,
+    node_url TEXT,
+    edge_source UUID,
+    edge_target UUID,
+    edge_created_at TIMESTAMP WITH TIME ZONE,
+    edge_modified_at TIMESTAMP WITH TIME ZONE,
+    edge_label TEXT,
+    edge_properties JSONB,
+    depth INTEGER
+) AS $$
+BEGIN
+    -- Validate direction parameter
+    IF direction_in NOT IN ('outgoing', 'incoming', 'both') THEN
+        RAISE EXCEPTION 'Invalid direction: %. Must be one of: outgoing, incoming, both',
+                        direction_in;
+    END IF;
+
+    -- Use recursive CTE for graph traversal
+    RETURN QUERY
+    WITH RECURSIVE traversal AS (
+        -- Base case: start with the initial node (depth 0)
+        SELECT
+            n.id,
+            n.created_at,
+            n.modified_at,
+            n.type,
+            n.properties,
+            c.title,
+            c.source,
+            c.mimetype,
+            c.content,
+            c.url,
+            NULL::UUID AS edge_source,
+            NULL::UUID AS edge_target,
+            NULL::TIMESTAMP WITH TIME ZONE AS edge_created_at,
+            NULL::TIMESTAMP WITH TIME ZONE AS edge_modified_at,
+            NULL::TEXT AS edge_label,
+            NULL::JSONB AS edge_properties,
+            0 AS depth
+        FROM pgraf.nodes n
+        LEFT JOIN pgraf.content_nodes c ON c.node = n.id
+        WHERE n.id = start_node_in
+
+        UNION ALL
+
+        -- Recursive case: traverse to connected nodes
+        SELECT
+            next_n.id,
+            next_n.created_at,
+            next_n.modified_at,
+            next_n.type,
+            next_n.properties,
+            next_c.title,
+            next_c.source,
+            next_c.mimetype,
+            next_c.content,
+            next_c.url,
+            e.source,
+            e.target,
+            e.created_at,
+            e.modified_at,
+            e.label,
+            e.properties,
+            t.depth + 1
+        FROM traversal t
+        JOIN pgraf.edges e ON
+            -- Handle direction logic
+            CASE
+                WHEN direction_in = 'outgoing' THEN e.source = t.id
+                WHEN direction_in = 'incoming' THEN e.target = t.id
+                WHEN direction_in = 'both' THEN e.source = t.id OR e.target = t.id
+            END
+        JOIN pgraf.nodes next_n ON
+            -- Connect to the correct node based on direction
+            CASE
+                WHEN direction_in = 'outgoing' THEN next_n.id = e.target
+                WHEN direction_in = 'incoming' THEN next_n.id = e.source
+                WHEN direction_in = 'both' AND e.source = t.id THEN next_n.id = e.target
+                WHEN direction_in = 'both' AND e.target = t.id THEN next_n.id = e.source
+            END
+        LEFT JOIN pgraf.content_nodes next_c ON next_c.node = next_n.id
+        WHERE
+            t.depth < max_depth_in AND
+            -- Filter by edge labels if provided
+            (edge_labels_in IS NULL OR e.label = ANY(edge_labels_in))
+    )
+    SELECT * FROM traversal;
+END;
+$$ LANGUAGE plpgsql;
