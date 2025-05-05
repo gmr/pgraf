@@ -125,7 +125,7 @@ class PGraf:
     ) -> list[NodeType]:
         """Get all nodes matching the criteria"""
         statement: list[str | sql.Composable] = [
-            sql.SQL(queries.GET_NODES.strip() + sql.SQL(' '))  # type: ignore
+            sql.SQL(queries.GET_NODES.strip() + ' ')  # type: ignore
         ]
         where = []
         parameters = {}
