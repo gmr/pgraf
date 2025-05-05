@@ -19,6 +19,13 @@ class _ModelWithProperties(pydantic.BaseModel):
         default_factory=lambda: {}
     )
 
+    @pydantic.computed_field()  # type: ignore[misc]
+    @property
+    def latest_timestamp(self) -> datetime.datetime:
+        if self.modified_at is not None:
+            return self.modified_at
+        return self.created_at
+
     @pydantic.model_validator(mode='before')
     @classmethod
     def deserialize_properties(cls, data):

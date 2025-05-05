@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS nodes
     properties  JSONB                    NOT NULL DEFAULT '{}'::jsonb
 );
 
+CREATE UNIQUE INDEX confluence_page_id ON pgraf.nodes ((properties->'page_id'));
+CREATE UNIQUE INDEX user_email_address ON pgraf.nodes ((properties->'email_address'));
+
+
+
 CREATE TABLE IF NOT EXISTS content_nodes
 (
     node      UUID     NOT NULL PRIMARY KEY REFERENCES nodes (id) ON DELETE CASCADE,
