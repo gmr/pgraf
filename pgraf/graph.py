@@ -48,11 +48,11 @@ class PGraf:
 
     async def add_content_node(
         self,
-        title: str,
         source: str,
         mimetype: str,
         content: str,
         url: str | None,
+        title: str | None = None,
         properties: dict | None = None,
         created_at: datetime.datetime | None = None,
         modified_at: datetime.datetime | None = None,
@@ -87,7 +87,7 @@ class PGraf:
             result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
 
-    async def get_node(self, node_id: uuid.UUID) -> NodeType | None:
+    async def get_node(self, node_id: uuid.UUID | None) -> NodeType | None:
         """Retrieve a node by ID"""
         async with self._postgres.callproc(
             'pgraf.get_node', {'id': node_id}
@@ -98,6 +98,20 @@ class PGraf:
                     return models.ContentNode.model_validate(data)
                 return models.Node.model_validate(data)
             return None
+
+    async def get_node_properties(self) -> list[str]:
+        """Retrieve the distincty property names across all nodes"""
+        async with self._postgres.execute(
+            queries.GET_NODE_PROPERTIES
+        ) as cursor:
+            return [
+                row['jsonb_object_keys'] for row in await cursor.fetchall()
+            ]  # type: ignore
+
+    async def get_node_sources(self) -> list[dict[str, str | int]]:
+        """Retrieve the content sources and the count of nodes each"""
+        async with self._postgres.execute(queries.GET_NODE_SOURCES) as cursor:
+            return await cursor.fetchall()  # type: ignore
 
     async def get_node_types(self) -> list[str]:
         """Retrieve all of the node types in the graph"""
@@ -111,19 +125,34 @@ class PGraf:
     ) -> list[NodeType]:
         """Get all nodes matching the criteria"""
         statement: list[str | sql.Composable] = [
-            sql.SQL(queries.GET_NODES.strip() + ' ')  # type: ignore
+            sql.SQL(queries.GET_NODES.strip() + sql.SQL(' '))  # type: ignore
         ]
         where = []
+        parameters = {}
         if properties:
-            where.append(sql.SQL('properties @> %(properties)s'))
+            props = []
+            for key, value in properties.items():
+                props.append(
+                    sql.SQL(
+                        f"properties->>'{key}' = "  # type: ignore
+                        f'%(props_{key})s'
+                    )
+                )
+                parameters[f'props_{key}'] = value
+            if len(props) > 1:
+                where.append(
+                    sql.SQL('(') + sql.SQL(' OR ').join(props) + sql.SQL(')')
+                )
+            else:
+                where.append(props[0])
         if node_types:
+            parameters['node_types'] = node_types
             where.append(sql.SQL('type = ANY(%(node_types)s)'))
         if where:
             statement.append(sql.SQL('WHERE '))
             statement.append(sql.SQL(' AND ').join(where))
         async with self._postgres.execute(
-            sql.Composed(statement),
-            {'properties': json.Jsonb(properties), 'node_types': node_types},
+            sql.Composable(statement), parameters
         ) as cursor:
             return await self._process_node_results(cursor)
 
@@ -203,7 +232,7 @@ class PGraf:
         source: str | None = None,
         similarity_threshold: float = 0.1,
         limit: int = 10,
-    ) -> list:
+    ) -> list[models.SearchResult]:
         """Search the content nodes in the graph, optionally filtering by
         properties, node types, and the edges labels.
 
@@ -224,15 +253,17 @@ class PGraf:
                 'source': source,
                 'limit': limit,
             },
+            models.SearchResult,
         ) as cursor:
-            return await self._process_node_results(cursor)
+            return await cursor.fetchall()
 
     async def traverse(
         self,
         start_node: uuid.UUID,
         edge_labels: list[str] | None = None,
         direction: str = 'outgoing',
-        max_depth: int = 100,
+        max_depth: int = 5,
+        limit: int = 25,
     ) -> list[tuple[NodeType, models.Edge | None]]:
         """Traverse the graph from a starting node"""
         results = []
@@ -243,6 +274,7 @@ class PGraf:
                 'direction': direction,
                 'max_depth': max_depth,
                 'edge_labels': edge_labels or [],
+                'limit': limit,
             },
         ) as cursor:
             rows: list[dict] = await cursor.fetchall()  # type: ignore
@@ -268,8 +300,9 @@ class PGraf:
         """Gracefully shutdown any open connections"""
         await self._postgres.shutdown()
 
+    @staticmethod
     async def _process_node_results(
-        self, cursor: psycopg.AsyncCursor
+        cursor: psycopg.AsyncCursor,
     ) -> list[NodeType]:
         results: list[NodeType] = []
         rows: list[dict] = await cursor.fetchall()  # type: ignore

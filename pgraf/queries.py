@@ -36,6 +36,18 @@ LEFT JOIN pgraf.content_nodes AS b
        ON b.node = a.id
 """
 
+GET_NODE_PROPERTIES = """
+SELECT DISTINCT jsonb_object_keys(properties)
+  FROM pgraf.nodes;
+"""
+
+GET_NODE_SOURCES = """
+  SELECT source, count(*)
+    FROM pgraf.content_nodes
+GROUP BY source
+ORDER BY source;
+"""
+
 PROC_NAMES = """
 SELECT REPLACE(arg_name, '_in', '') AS arg_name,
        arg_type

@@ -76,8 +76,14 @@ class ContentNode(Node):
     """Provides additional attributes for a content Node type"""
 
     type: str = 'content'
-    title: str
+    title: str | None = None
     mimetype: str
     source: str
     content: str
-    url: str | None
+    url: str | None = None
+
+
+class SearchResult(ContentNode):
+    """Used for the return results of a search"""
+
+    similarity: float

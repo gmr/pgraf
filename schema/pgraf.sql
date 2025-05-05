@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS nodes
 CREATE TABLE IF NOT EXISTS content_nodes
 (
     node      UUID     NOT NULL PRIMARY KEY REFERENCES nodes (id) ON DELETE CASCADE,
-    title     TEXT     NOT NULL,
+    title     TEXT,
     source    TEXT     NOT NULL,
     mimetype  TEXT     NOT NULL,
     content   TEXT     NOT NULL,
@@ -197,13 +197,12 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION update_node(
     IN id_in UUID,
-    IN modified_at_in TIMESTAMP WITH TIME ZONE,
     IN type_in TEXT,
     IN properties_in JSONB)
     RETURNS SETOF pgraf.nodes AS
 $$
    UPDATE pgraf.nodes
-      SET modified_at = modified_at_in,
+      SET modified_at = CURRENT_TIMESTAMP,
           type        = type_in,
           properties  = properties_in
     WHERE nodes.id = id_in
@@ -343,7 +342,8 @@ CREATE OR REPLACE FUNCTION pgraf.traverse(
     start_node_in UUID,
     edge_labels_in TEXT[] DEFAULT NULL,
     direction_in TEXT DEFAULT 'outgoing',
-    max_depth_in INTEGER DEFAULT 1
+    max_depth_in INTEGER DEFAULT 1,
+    limit_in INTEGER DEFAULT 25
 )
 RETURNS TABLE (
     node_id UUID,
@@ -440,7 +440,10 @@ BEGIN
             -- Filter by edge labels if provided
             (edge_labels_in IS NULL OR e.label = ANY(edge_labels_in))
     )
-    SELECT * FROM traversal;
+    SELECT *
+      FROM traversal
+  ORDER BY greatest(created_at, modified_at) DESC
+     LIMIT limit_in;
 END;
 $$ LANGUAGE plpgsql;
 
