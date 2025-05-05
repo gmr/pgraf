@@ -125,7 +125,7 @@ class PGraf:
     ) -> list[NodeType]:
         """Get all nodes matching the criteria"""
         statement: list[str | sql.Composable] = [
-            sql.SQL(queries.GET_NODES.strip() + ' ')  # type: ignore
+            sql.SQL(queries.GET_NODES.strip()) + sql.SQL(' ')  # type: ignore
         ]
         where = []
         parameters = {}
@@ -152,7 +152,7 @@ class PGraf:
             statement.append(sql.SQL('WHERE '))
             statement.append(sql.SQL(' AND ').join(where))
         async with self._postgres.execute(
-            sql.Composable(statement), parameters
+            sql.Composed(statement), parameters
         ) as cursor:
             return await self._process_node_results(cursor)
 
