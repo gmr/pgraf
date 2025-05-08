@@ -99,7 +99,7 @@ class PostgresTestCase(common.PostgresTestCase):
                 await cursor.fetchone()
 
     async def test_shutdown_double_call(self) -> None:
-        await self.postgres.shutdown()
+        await self.postgres.aclose()
         self.assertIsNone(self.postgres._pool)
         with self.assertRaises(RuntimeError):
             async with self.postgres.execute('SELECT 1') as _:
@@ -154,7 +154,7 @@ class PostgresTestCase(common.PostgresTestCase):
 
     async def test_cursor_no_pool(self) -> None:
         # Force the pool to close
-        await self.postgres.shutdown()
+        await self.postgres.aclose()
         self.assertIsNone(self.postgres._pool)
 
         # Test using cursor with no pool
@@ -187,4 +187,4 @@ class PostgresTestCase(common.PostgresTestCase):
                 self.assertIsNotNone(cursor)
                 self.assertTrue(open_pool_called)
         finally:
-            await new_postgres.shutdown()
+            await new_postgres.aclose()

@@ -13,7 +13,7 @@ class TestModelWithProperties(unittest.TestCase):
         json_str = '{"name": "test", "value": 123}'
         data = {'properties': json_str}
 
-        result = models._ModelWithProperties.deserialize_properties(data)
+        result = models._GraphModel.deserialize_properties(data)
 
         self.assertIsInstance(result['properties'], dict)
         self.assertEqual(result['properties']['name'], 'test')
@@ -23,34 +23,34 @@ class TestModelWithProperties(unittest.TestCase):
         props = {'name': 'test', 'value': 123}
         data = {'properties': props}
 
-        result = models._ModelWithProperties.deserialize_properties(data)
+        result = models._GraphModel.deserialize_properties(data)
 
         self.assertIs(result['properties'], props)
 
     def test_deserialize_properties_invalid_json(self):
         data = {'properties': '{invalid json}'}
 
-        result = models._ModelWithProperties.deserialize_properties(data)
+        result = models._GraphModel.deserialize_properties(data)
 
         self.assertEqual(result['properties'], '{invalid json}')
 
     def test_deserialize_properties_no_properties(self):
         data = {'other_field': 'value'}
 
-        result = models._ModelWithProperties.deserialize_properties(data)
+        result = models._GraphModel.deserialize_properties(data)
 
         self.assertEqual(result, data)
 
     def test_deserialize_properties_non_dict_data(self):
         data = 'not a dict'
 
-        result = models._ModelWithProperties.deserialize_properties(data)
+        result = models._GraphModel.deserialize_properties(data)
 
         self.assertEqual(result, data)
 
     def test_serialize_properties(self):
         props = {'name': 'test', 'value': 123}
-        model = models._ModelWithProperties(properties=props)
+        model = models._GraphModel(properties=props)
 
         result = model.serialize_properties(props)
 
@@ -67,7 +67,7 @@ class TestNodeModel(unittest.TestCase):
         # We'll test that node has defaults for id and created_at
         # without using mocks that are hard to get working
         node = models.Node(
-            type='Person', properties={'name': 'John'}, modified_at=None
+            labels=['Person'], properties={'name': 'John'}, modified_at=None
         )
 
         self.assertTrue(node.id is not None)
@@ -75,26 +75,33 @@ class TestNodeModel(unittest.TestCase):
 
         self.assertIsInstance(node.created_at, datetime.datetime)
         self.assertIsNone(node.modified_at)
-        self.assertEqual(node.type, 'Person')
+        self.assertIn('Person', node.labels)
         self.assertEqual(node.properties, {'name': 'John'})
+
+        # Test latest_timestamp returns created_at when modified_at is None
+        self.assertEqual(node.latest_timestamp, node.created_at)
 
     def test_node_explicit_values(self):
         test_uuid = uuid.uuid4()
         test_time = datetime.datetime.now(tz=datetime.UTC)
+        modified_time = test_time + datetime.timedelta(days=1)
 
         node = models.Node(
             id=test_uuid,
             created_at=test_time,
-            modified_at=test_time,
-            type='City',
+            modified_at=modified_time,
+            labels=['City'],
             properties={'name': 'New York'},
         )
 
         self.assertEqual(node.id, test_uuid)
         self.assertEqual(node.created_at, test_time)
-        self.assertEqual(node.modified_at, test_time)
-        self.assertEqual(node.type, 'City')
+        self.assertEqual(node.modified_at, modified_time)
+        self.assertIn('City', node.labels)
         self.assertEqual(node.properties, {'name': 'New York'})
+
+        # Test latest_timestamp returns modified_at when it's not None
+        self.assertEqual(node.latest_timestamp, modified_time)
 
 
 class TestEdgeModel(unittest.TestCase):
@@ -107,7 +114,7 @@ class TestEdgeModel(unittest.TestCase):
         edge = models.Edge(
             source=source_id,
             target=target_id,
-            label='KNOWS',
+            labels=['KNOWS'],
             properties={'since': 2023},
             modified_at=None,
         )
@@ -116,7 +123,7 @@ class TestEdgeModel(unittest.TestCase):
         self.assertEqual(edge.target, target_id)
         self.assertIsInstance(edge.created_at, datetime.datetime)
         self.assertIsNone(edge.modified_at)
-        self.assertEqual(edge.label, 'KNOWS')
+        self.assertIn('KNOWS', edge.labels)
         self.assertEqual(edge.properties, {'since': 2023})
 
     def test_edge_explicit_values(self):
@@ -129,7 +136,7 @@ class TestEdgeModel(unittest.TestCase):
             target=target_id,
             created_at=test_time,
             modified_at=test_time,
-            label='LIVES_IN',
+            labels=['LIVES_IN'],
             properties={'since': 2020},
         )
 
@@ -137,7 +144,7 @@ class TestEdgeModel(unittest.TestCase):
         self.assertEqual(edge.target, target_id)
         self.assertEqual(edge.created_at, test_time)
         self.assertEqual(edge.modified_at, test_time)
-        self.assertEqual(edge.label, 'LIVES_IN')
+        self.assertIn('LIVES_IN', edge.labels)
         self.assertEqual(edge.properties, {'since': 2020})
 
 
@@ -162,45 +169,3 @@ class TestEmbeddingModel(unittest.TestCase):
                 f'Value must have exactly 384 dimensions, got {size}',
                 str(context.exception),
             )
-
-
-class TestContentNodeModel(unittest.TestCase):
-    """Test the ContentNode model."""
-
-    def test_content_node_required_fields(self):
-        node_id = uuid.uuid4()
-        doc = models.ContentNode(
-            id=node_id,
-            title='Test Document',
-            content='This is a test document',
-            url=None,
-            source='test',
-            mimetype='text/plain',
-        )
-        self.assertEqual(doc.id, node_id)
-        self.assertEqual(doc.title, 'Test Document')
-        self.assertEqual(doc.content, 'This is a test document')
-        self.assertEqual(doc.type, 'content')
-        self.assertIsNone(doc.url)
-        self.assertEqual(doc.source, 'test')
-        self.assertEqual(doc.mimetype, 'text/plain')
-
-    def test_content_node_all_fields(self):
-        node_id = uuid.uuid4()
-        doc = models.ContentNode(
-            id=node_id,
-            title='Test Document',
-            content='This is a test document',
-            url='https://example.com/doc',
-            source='web',
-            mimetype='text/html',
-            properties={'label': 'test'},
-        )
-        self.assertEqual(doc.id, node_id)
-        self.assertEqual(doc.title, 'Test Document')
-        self.assertEqual(doc.content, 'This is a test document')
-        self.assertEqual(doc.type, 'content')
-        self.assertEqual(doc.url, 'https://example.com/doc')
-        self.assertEqual(doc.source, 'web')
-        self.assertEqual(doc.mimetype, 'text/html')
-        self.assertDictEqual(doc.properties, {'label': 'test'})

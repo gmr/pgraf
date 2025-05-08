@@ -87,7 +87,8 @@ CREATE OR REPLACE FUNCTION add_node(
     RETURNS SETOF record AS $$
 INSERT INTO pgraf.nodes (id, created_at, modified_at, labels, properties, mimetype, content, vector)
      VALUES (id_in, created_at_in, modified_at_in, labels_in,
-             properties_in, mimetype_in, content_in, to_tsvector(content_in))
+             properties_in, mimetype_in, content_in,
+             CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) ELSE NULL END)
   RETURNING id, created_at, modified_at, labels, properties, mimetype, content;
 $$ LANGUAGE sql;
 
@@ -148,7 +149,8 @@ BEGIN
           labels = labels_in,
           properties = properties_in,
           mimetype = mimetype_in,
-          content = to_tsvector(content_in)
+          content = content_in,
+          vector = CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) ELSE NULL END
     WHERE nodes.id = id_in;
    -- Return the updated record
    RETURN QUERY
@@ -168,7 +170,7 @@ CREATE OR REPLACE FUNCTION add_edge(
     IN source_in UUID,
     IN target_in UUID,
     IN created_at_in TIMESTAMP WITH TIME ZONE,
-    IN label_in TEXT,
+    IN labels_in TEXT[],
     IN properties_in JSONB)
     RETURNS SETOF pgraf.edges AS
 $$
@@ -177,9 +179,9 @@ BEGIN
         RAISE EXCEPTION 'Source % and Target are the same node', source_in;
     END IF;
     RETURN QUERY
-    INSERT INTO pgraf.edges (source, target, created_at, label, properties)
-         VALUES (source_in, target_in, created_at_in, label_in, properties_in)
-      RETURNING source, target, created_at, modified_at, label, properties;
+    INSERT INTO pgraf.edges (source, target, created_at, labels, properties)
+         VALUES (source_in, target_in, created_at_in, labels_in, properties_in)
+      RETURNING source, target, created_at, modified_at, labels, properties;
 END
 $$ LANGUAGE plpgsql;
 

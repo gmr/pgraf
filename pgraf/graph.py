@@ -227,30 +227,109 @@ class PGraf:
     ) -> list[tuple[models.Node, models.Edge | None]]:
         """Traverse the graph from a starting node"""
         results = []
-        async with self._postgres.callproc(
-            'pgraf.traverse',
-            {
-                'start_node': start_node,
-                'direction': direction,
-                'max_depth': max_depth,
-                'node_labels': node_labels or [],
-                'edge_labels': edge_labels or [],
-                'limit': limit,
-            },
-        ) as cursor:
-            rows: list[dict] = await cursor.fetchall()  # type: ignore
-            for row in rows:
-                edge_dict, node_dict = {}, {}
-                for key, value in row.items():
-                    if key.startswith('edge_') and value is not None:
-                        edge_dict[key[5:]] = value
-                    elif key.startswith('node_'):
-                        node_dict[key[5:]] = value
-                node = models.Node.model_validate(node_dict)
-                edge: models.Edge | None = None
-                if edge_dict:
-                    edge = models.Edge.model_validate(edge_dict)
-                results.append((node, edge))
+        visited_nodes = set()  # Track visited nodes to avoid duplicates
+
+        # Recursive helper function to implement depth-first traversal
+        async def traverse_recursive(node_id, current_depth=0, path_edge=None):
+            # Check the limit
+            if len(results) >= limit:
+                return
+
+            # Check max depth
+            if current_depth > max_depth:
+                return
+
+            # Check if we've visited this node
+            if node_id in visited_nodes:
+                return
+
+            # Mark this node as visited
+            visited_nodes.add(node_id)
+
+            # Get the current node
+            current_node = await self.get_node(node_id)
+            if not current_node:
+                return
+
+            # Apply node label filtering
+            if node_labels and not any(
+                label in current_node.labels for label in node_labels
+            ):
+                # Only filter at depth > 0 to ensure starting node is included
+                if current_depth > 0:
+                    return
+
+            # Add this node to results
+            results.append((current_node, path_edge))
+
+            if current_depth >= max_depth:
+                return
+
+            # Build SQL query based on direction
+            if direction == 'outgoing':
+                query = sql.SQL(
+                    'SELECT * FROM pgraf.edges WHERE source = %(node_id)s'
+                )
+            elif direction == 'incoming':
+                query = sql.SQL(
+                    'SELECT * FROM pgraf.edges WHERE target = %(node_id)s'
+                )
+            else:  # both
+                query = sql.SQL(
+                    'SELECT * FROM pgraf.edges '
+                    'WHERE source = %(node_id)s OR target = %(node_id)s'
+                )
+
+            # Get all edges connected to this node
+            async with self._postgres.execute(
+                query, {'node_id': node_id}
+            ) as cursor:
+                edges = await cursor.fetchall()
+
+                # Process each edge
+                for edge_row in edges:
+                    # Skip edges that don't match filter criteria
+                    if edge_labels and not any(
+                        label in edge_row['labels'] for label in edge_labels
+                    ):
+                        continue
+
+                    # Create the edge model
+                    edge = models.Edge(
+                        source=edge_row['source'],
+                        target=edge_row['target'],
+                        labels=edge_row['labels'],
+                        properties=edge_row['properties'],
+                    )
+
+                    # Determine the next node ID based on direction
+                    next_id = edge_row['target']
+                    if direction == 'incoming' or (
+                        direction == 'both' and edge_row['target'] == node_id
+                    ):
+                        next_id = edge_row['source']
+
+                    # Skip if it's the current node
+                    if next_id == node_id:
+                        continue
+
+                    # Recursively traverse
+                    await traverse_recursive(next_id, current_depth + 1, edge)
+
+                    # Check if limit reached
+                    if len(results) >= limit:
+                        return
+
+        # Start the traversal
+        await traverse_recursive(start_node)
+
+        # Log traversal results
+        LOGGER.debug(
+            'Traverse results: %s items, visited %s nodes',
+            len(results),
+            len(visited_nodes),
+        )
+
         return results
 
     async def _get_labels(self, table: str) -> list[str]:

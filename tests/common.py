@@ -25,7 +25,7 @@ class PostgresTestCase(unittest.IsolatedAsyncioTestCase):
         if self.postgres._pool:
             async with self.postgres.cursor() as cursor:
                 await cursor.execute('TRUNCATE TABLE pgraf.nodes CASCADE')
-        await self.postgres.shutdown()
+        await self.postgres.aclose()
 
 
 def _docker_port() -> int:
