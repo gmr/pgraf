@@ -2,14 +2,13 @@ from importlib import metadata
 
 from pgraf.errors import DatabaseError
 from pgraf.graph import PGraf
-from pgraf.models import ContentNode, Edge, Node, SearchResult
+from pgraf.models import Edge, Node, SearchResult
 
 version = metadata.version('pgraf')
 
-NodeTypes = Node | ContentNode | SearchResult
+NodeTypes = Node | SearchResult
 
 __all__ = [
-    'ContentNode',
     'DatabaseError',
     'Edge',
     'Node',
