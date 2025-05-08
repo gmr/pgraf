@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import logging
 import re
@@ -28,25 +29,32 @@ class Postgres:
         pool_min_size: int = 1,
         pool_max_size: int = 10,
     ) -> None:
-        self._url = str(url)
+        self._lock = asyncio.Lock()
         self._pool = psycopg_pool.AsyncConnectionPool(
-            self._url,
+            str(url),
             kwargs={'autocommit': True, 'row_factory': rows.dict_row},
             max_size=pool_max_size,
             min_size=pool_min_size,
             open=False,
             configure=self._configure_vector,
         )
+        self._url = str(url)
 
-    async def shutdown(self) -> None:
+    async def initialize(self) -> None:
+        """Initialize the connection pool"""
+        async with self._lock:
+            await self._open_pool()
+
+    async def aclose(self) -> None:
         """Close the connection pool, returns False if the pool
         is already closed.
 
         """
-        if self._pool and not self._pool.closed:
-            LOGGER.debug('Closing connection pool')
-            await self._pool.close()
-        self._pool = None
+        async with self._lock:
+            if self._pool and not self._pool.closed:
+                LOGGER.debug('Closing connection pool')
+                await self._pool.close()
+            self._pool = None
 
     @contextlib.asynccontextmanager
     async def callproc(
@@ -68,7 +76,7 @@ class Postgres:
     ) -> abc.AsyncGenerator[AsyncCursor]:
         """Get a cursor for Postgres."""
         if not self._pool:
-            raise RuntimeError('Postgres instance already shutdown')
+            raise RuntimeError('Postgres instance already closed')
         elif self._pool.closed:
             await self._open_pool()
         async with self._pool.connection() as conn:
