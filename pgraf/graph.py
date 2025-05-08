@@ -55,8 +55,8 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.add_node', value, models.Node
         ) as cursor:
-            result = await cursor.fetchone()  # type: ignore
-        if content is not None:
+            result: models.Node = await cursor.fetchone()  # type: ignore
+        if value.content is not None:
             await self._upsert_embeddings(value.id, value.content)
         return result
 
@@ -74,7 +74,7 @@ class PGraf:
             'pgraf.get_node', {'id': node_id}, models.Node
         ) as cursor:
             if cursor.rowcount == 1:
-                return await cursor.fetchone()
+                return await cursor.fetchone()  # type: ignore
             return None
 
     async def get_node_labels(self) -> list[str]:
@@ -92,7 +92,7 @@ class PGraf:
         statement: list[str | sql.Composable] = [
             sql.SQL(queries.GET_NODES) + sql.SQL(' ')  # type: ignore
         ]
-        where = []
+        where: list[sql.Composable] = []
         parameters = {}
         if labels:
             parameters['labels'] = labels
@@ -127,7 +127,7 @@ class PGraf:
         async with self._postgres.callproc(
             'pgraf.update_node', node, models.Node
         ) as cursor:
-            result = await cursor.fetchone()  # type: ignore
+            result: models.Node = await cursor.fetchone()  # type: ignore
         if result.content is not None:
             await self._upsert_embeddings(result.id, result.content)
         return result
@@ -214,7 +214,8 @@ class PGraf:
             },
             models.SearchResult,
         ) as cursor:
-            return await cursor.fetchall()
+            results: list[models.SearchResult] = await cursor.fetchall()  # type: ignore
+            return results
 
     async def traverse(
         self,
@@ -226,7 +227,7 @@ class PGraf:
         limit: int = 25,
     ) -> list[tuple[models.Node, models.Edge | None]]:
         """Traverse the graph from a starting node"""
-        results = []
+        results: list[tuple[models.Node, models.Edge | None]] = []
         visited_nodes = set()  # Track visited nodes to avoid duplicates
 
         # Recursive helper function to implement depth-first traversal
