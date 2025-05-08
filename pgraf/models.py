@@ -8,7 +8,7 @@ import pydantic
 from pgraf import utils
 
 
-class _ModelWithProperties(pydantic.BaseModel):
+class _GraphModel(pydantic.BaseModel):
     """Base model to auto serialize/deserialize the jsonb field in Postgres"""
 
     created_at: datetime.datetime = pydantic.Field(
@@ -18,8 +18,8 @@ class _ModelWithProperties(pydantic.BaseModel):
     properties: dict[str, typing.Any] = pydantic.Field(
         default_factory=lambda: {}
     )
+    labels: list[str] = pydantic.Field(default_factory=list)
 
-    @pydantic.computed_field()  # type: ignore[misc]
     @property
     def latest_timestamp(self) -> datetime.datetime:
         if self.modified_at is not None:
@@ -43,19 +43,19 @@ class _ModelWithProperties(pydantic.BaseModel):
         return orjson.dumps(properties).decode('utf-8')
 
 
-class Node(_ModelWithProperties):
+class Node(_GraphModel):
     """A node represents an entity or object within the graph model."""
 
     id: uuid.UUID = pydantic.Field(default_factory=utils.uuidv7)
-    type: str
+    mimetype: str | None = None
+    content: str | None = None
 
 
-class Edge(_ModelWithProperties):
+class Edge(_GraphModel):
     """An edge represents the relationship between two nodes"""
 
     source: uuid.UUID
     target: uuid.UUID
-    label: str
 
 
 class Embedding(pydantic.BaseModel):
@@ -79,18 +79,7 @@ class Embedding(pydantic.BaseModel):
         return value
 
 
-class ContentNode(Node):
-    """Provides additional attributes for a content Node type"""
-
-    type: str = 'content'
-    title: str | None = None
-    mimetype: str
-    source: str
-    content: str
-    url: str | None = None
-
-
-class SearchResult(ContentNode):
+class SearchResult(Node):
     """Used for the return results of a search"""
 
     similarity: float

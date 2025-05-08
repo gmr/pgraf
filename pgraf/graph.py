@@ -1,8 +1,8 @@
 import datetime
 import logging
+import typing
 import uuid
 
-import psycopg
 import pydantic
 from psycopg import sql
 from psycopg.types import json
@@ -10,8 +10,6 @@ from psycopg.types import json
 from pgraf import embeddings, errors, models, postgres, queries
 
 LOGGER = logging.getLogger(__name__)
-
-NodeType = models.ContentNode | models.Node
 
 
 class PGraf:
@@ -26,58 +24,41 @@ class PGraf:
         self._embeddings = embeddings.Embeddings()
         self._postgres = postgres.Postgres(url, pool_min_size, pool_max_size)
 
+    async def initialize(self) -> None:
+        """Ensure the database is connected and ready to go."""
+        await self._postgres.initialize()
+
+    async def aclose(self) -> None:
+        """Close the Postgres connection pool."""
+        await self._postgres.aclose()
+
     async def add_node(
         self,
-        node_type: str,
+        labels: list[str],
         properties: dict | None = None,
         created_at: datetime.datetime | None = None,
         modified_at: datetime.datetime | None = None,
+        mimetype: str | None = None,
+        content: str | None = None,
     ) -> models.Node:
         """Add a node to the graph"""
-        value = models.Node.model_validate(
-            {'type': node_type, 'properties': properties}
+        value = models.Node(
+            labels=labels,
+            properties=properties or {},
+            mimetype=mimetype,
+            content=content,
         )
-        if created_at:
+        if created_at is not None:
             value.created_at = created_at
-        if modified_at:
+        if modified_at is not None:
             value.modified_at = modified_at
         async with self._postgres.callproc(
             'pgraf.add_node', value, models.Node
         ) as cursor:
-            return await cursor.fetchone()  # type: ignore
-
-    async def add_content_node(
-        self,
-        source: str,
-        mimetype: str,
-        content: str,
-        url: str | None,
-        title: str | None = None,
-        properties: dict | None = None,
-        created_at: datetime.datetime | None = None,
-        modified_at: datetime.datetime | None = None,
-    ) -> models.ContentNode:
-        """Add a content based node to the graph"""
-        value = models.ContentNode.model_validate(
-            {
-                'title': title,
-                'source': source,
-                'mimetype': mimetype,
-                'content': content,
-                'url': url,
-                'properties': properties,
-            }
-        )
-        if created_at:
-            value.created_at = created_at
-        if modified_at:
-            value.modified_at = modified_at
-        async with self._postgres.callproc(
-            'pgraf.add_content_node', value, models.ContentNode
-        ) as cursor:
-            node: models.ContentNode = await cursor.fetchone()  # type: ignore
-        await self._upsert_embeddings(node.id, node.content)
-        return node
+            result = await cursor.fetchone()  # type: ignore
+        if content is not None:
+            await self._upsert_embeddings(value.id, value.content)
+        return result
 
     async def delete_node(self, node_id: uuid.UUID) -> bool:
         """Retrieve a node by ID"""
@@ -87,48 +68,35 @@ class PGraf:
             result: dict[str, int] = await cursor.fetchone()  # type: ignore
             return result['count'] == 1
 
-    async def get_node(self, node_id: uuid.UUID | None) -> NodeType | None:
+    async def get_node(self, node_id: uuid.UUID | None) -> models.Node | None:
         """Retrieve a node by ID"""
         async with self._postgres.callproc(
-            'pgraf.get_node', {'id': node_id}
+            'pgraf.get_node', {'id': node_id}, models.Node
         ) as cursor:
             if cursor.rowcount == 1:
-                data: dict = await cursor.fetchone()  # type: ignore
-                if data['type'] == 'content':
-                    return models.ContentNode.model_validate(data)
-                return models.Node.model_validate(data)
+                return await cursor.fetchone()
             return None
+
+    async def get_node_labels(self) -> list[str]:
+        """Retrieve all of the node types in the graph"""
+        return await self._get_labels('nodes')
 
     async def get_node_properties(self) -> list[str]:
         """Retrieve the distincty property names across all nodes"""
-        async with self._postgres.execute(
-            queries.GET_NODE_PROPERTIES
-        ) as cursor:
-            return [
-                row['jsonb_object_keys'] for row in await cursor.fetchall()
-            ]  # type: ignore
-
-    async def get_node_sources(self) -> list[dict[str, str | int]]:
-        """Retrieve the content sources and the count of nodes each"""
-        async with self._postgres.execute(queries.GET_NODE_SOURCES) as cursor:
-            return await cursor.fetchall()  # type: ignore
-
-    async def get_node_types(self) -> list[str]:
-        """Retrieve all of the node types in the graph"""
-        async with self._postgres.execute(queries.GET_NODE_TYPES) as cursor:
-            return [row['type'] for row in await cursor.fetchall()]  # type: ignore
+        return await self._get_properties('nodes')
 
     async def get_nodes(
-        self,
-        properties: dict | None = None,
-        node_types: list[str] | None = None,
-    ) -> list[NodeType]:
+        self, properties: dict | None = None, labels: list[str] | None = None
+    ) -> typing.AsyncGenerator[models.Node, None]:
         """Get all nodes matching the criteria"""
         statement: list[str | sql.Composable] = [
-            sql.SQL(queries.GET_NODES.strip()) + sql.SQL(' ')  # type: ignore
+            sql.SQL(queries.GET_NODES) + sql.SQL(' ')  # type: ignore
         ]
         where = []
         parameters = {}
+        if labels:
+            parameters['labels'] = labels
+            where.append(sql.SQL('labels && %(labels)s'))
         if properties:
             props = []
             for key, value in properties.items():
@@ -145,50 +113,38 @@ class PGraf:
                 )
             else:
                 where.append(props[0])
-        if node_types:
-            parameters['node_types'] = node_types
-            where.append(sql.SQL('type = ANY(%(node_types)s)'))
         if where:
             statement.append(sql.SQL('WHERE '))
             statement.append(sql.SQL(' AND ').join(where))
         async with self._postgres.execute(
-            sql.Composed(statement), parameters
+            sql.Composed(statement), parameters, models.Node
         ) as cursor:
-            return await self._process_node_results(cursor)
+            async for row in cursor:
+                yield models.Node.model_validate(row)
 
     async def update_node(self, node: models.Node) -> models.Node:
         """Update a node"""
         async with self._postgres.callproc(
             'pgraf.update_node', node, models.Node
         ) as cursor:
-            return await cursor.fetchone()  # type: ignore
-
-    async def update_content_node(
-        self, node: models.ContentNode
-    ) -> models.ContentNode:
-        """Update a node, recreating the embeddings and vectors"""
-        async with self._postgres.callproc(
-            'pgraf.update_content_node', node, models.ContentNode
-        ) as cursor:
-            node: models.ContentNode = await cursor.fetchone()  # type: ignore
-        await self._upsert_embeddings(node.id, node.content)
-        return node
+            result = await cursor.fetchone()  # type: ignore
+        if result.content is not None:
+            await self._upsert_embeddings(result.id, result.content)
+        return result
 
     async def add_edge(
         self,
         source: uuid.UUID,
         target: uuid.UUID,
-        label: str,
+        labels: list[str] | None = None,
         properties: dict | None = None,
     ) -> models.Edge:
         """Add an edge, linking two nodes in the graph"""
-        value = models.Edge.model_validate(
-            {
-                'source': source,
-                'target': target,
-                'label': label,
-                'properties': properties or {},
-            }
+        value = models.Edge(
+            source=source,
+            target=target,
+            labels=labels or [],
+            properties=properties or {},
         )
         async with self._postgres.callproc(
             'pgraf.add_edge', value, models.Edge
@@ -214,8 +170,11 @@ class PGraf:
 
     async def get_edge_labels(self) -> list[str]:
         """Retrieve all of the edge labels in the graph"""
-        async with self._postgres.execute(queries.GET_EDGE_LABELS) as cursor:
-            return [row['label'] for row in await cursor.fetchall()]  # type: ignore
+        return await self._get_labels('edges')
+
+    async def get_edge_properties(self) -> list[str]:
+        """Retrieve all of the edge property names in the graph"""
+        return await self._get_properties('edges')
 
     async def update_edge(self, edge: models.Edge) -> models.Edge:
         """Update an edge"""
@@ -228,7 +187,7 @@ class PGraf:
         self,
         query: str,
         properties: dict | None = None,
-        node_types: list[str] | None = None,
+        labels: list[str] | None = None,
         source: str | None = None,
         similarity_threshold: float = 0.1,
         limit: int = 10,
@@ -248,7 +207,7 @@ class PGraf:
                 'query': query,
                 'embeddings': vector[0],
                 'properties': json.Jsonb(properties) if properties else None,
-                'node_types': node_types,
+                'labels': labels,
                 'similarity': similarity_threshold,
                 'source': source,
                 'limit': limit,
@@ -260,11 +219,12 @@ class PGraf:
     async def traverse(
         self,
         start_node: uuid.UUID,
+        node_labels: list[str] | None = None,
         edge_labels: list[str] | None = None,
         direction: str = 'outgoing',
         max_depth: int = 5,
         limit: int = 25,
-    ) -> list[tuple[NodeType, models.Edge | None]]:
+    ) -> list[tuple[models.Node, models.Edge | None]]:
         """Traverse the graph from a starting node"""
         results = []
         async with self._postgres.callproc(
@@ -273,6 +233,7 @@ class PGraf:
                 'start_node': start_node,
                 'direction': direction,
                 'max_depth': max_depth,
+                'node_labels': node_labels or [],
                 'edge_labels': edge_labels or [],
                 'limit': limit,
             },
@@ -285,44 +246,51 @@ class PGraf:
                         edge_dict[key[5:]] = value
                     elif key.startswith('node_'):
                         node_dict[key[5:]] = value
+                node = models.Node.model_validate(node_dict)
                 edge: models.Edge | None = None
                 if edge_dict:
                     edge = models.Edge.model_validate(edge_dict)
-                node: NodeType
-                if node_dict['type'] == 'content':
-                    node = models.ContentNode.model_validate(node_dict)
-                else:
-                    node = models.Node.model_validate(node_dict)
                 results.append((node, edge))
         return results
 
-    async def shutdown(self) -> None:
-        """Gracefully shutdown any open connections"""
-        await self._postgres.shutdown()
+    async def _get_labels(self, table: str) -> list[str]:
+        """Dynamically construct the query to get distinct labels"""
+        query = sql.Composed(
+            [
+                sql.SQL('SELECT DISTINCT unnest(labels) AS label'),
+                sql.SQL(' FROM '),
+                sql.SQL('.').join(
+                    [sql.Identifier('pgraf'), sql.Identifier(table)]
+                ),
+                sql.SQL(' WHERE labels IS NOT NULL '),
+                sql.SQL(' ORDER BY label'),
+            ]
+        )
+        async with self._postgres.execute(query) as cursor:
+            return [row['label'] for row in await cursor.fetchall()]  # type: ignore
 
-    @staticmethod
-    async def _process_node_results(
-        cursor: psycopg.AsyncCursor,
-    ) -> list[NodeType]:
-        results: list[NodeType] = []
-        rows: list[dict] = await cursor.fetchall()  # type: ignore
-        for row in rows:
-            if row['type'] == 'content':
-                results.append(models.ContentNode.model_validate(row))
-            else:
-                results.append(models.Node.model_validate(row))
-        return results
+    async def _get_properties(self, table: str) -> list[str]:
+        """Retrieve the distincty property names across all nodes"""
+        query = sql.Composed(
+            [
+                sql.SQL(
+                    'SELECT DISTINCT jsonb_object_keys(properties) AS key'
+                ),
+                sql.SQL(' FROM '),
+                sql.SQL('.').join(
+                    [sql.Identifier('pgraf'), sql.Identifier(table)]
+                ),
+                sql.SQL(' WHERE properties IS NOT NULL'),
+                sql.SQL(' ORDER BY key'),
+            ]
+        )
+        async with self._postgres.execute(query) as cursor:
+            return [row['key'] for row in await cursor.fetchall()]  # type: ignore
 
     async def _upsert_embeddings(
         self, node_id: uuid.UUID, content: str
     ) -> None:
         """Chunk the content and write the embeddings"""
-        async with self._postgres.execute(
-            queries.DELETE_EMBEDDINGS, {'node': node_id}
-        ) as cursor:
-            LOGGER.debug(
-                'Deleted %i stale embeddings for %s', cursor.rowcount, node_id
-            )
         for offset, value in enumerate(self._embeddings.get(content)):
             async with self._postgres.callproc(
                 'pgraf.add_embedding',

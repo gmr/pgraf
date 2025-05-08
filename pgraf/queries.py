@@ -3,49 +3,15 @@ SQL Queries
 ===========
 """
 
-DELETE_EMBEDDINGS = """
-DELETE FROM pgraf.embeddings
-      WHERE node = %(node)s
-"""
-
-GET_EDGE_LABELS = """
-  SELECT DISTINCT label
-    FROM pgraf.edges
-ORDER BY label;
-"""
-
-GET_NODE_TYPES = """
-  SELECT DISTINCT type
-    FROM pgraf.nodes
-ORDER BY type;
-"""
-
 GET_NODES = """
-   SELECT a.id,
-          a.created_at,
-          a.modified_at,
-          a.type,
-          a.properties,
-          b.title,
-          b.source,
-          b.mimetype,
-          b.content,
-          b.url
-     FROM pgraf.nodes AS a
-LEFT JOIN pgraf.content_nodes AS b
-       ON b.node = a.id
-"""
-
-GET_NODE_PROPERTIES = """
-SELECT DISTINCT jsonb_object_keys(properties)
-  FROM pgraf.nodes;
-"""
-
-GET_NODE_SOURCES = """
-  SELECT source, count(*)
-    FROM pgraf.content_nodes
-GROUP BY source
-ORDER BY source;
+   SELECT id,
+          created_at,
+          modified_at,
+          labels,
+          properties,
+          mimetype,
+          content
+     FROM pgraf.nodes
 """
 
 PROC_NAMES = """
