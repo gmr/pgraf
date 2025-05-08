@@ -125,7 +125,7 @@ $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION update_node(
     IN id_in UUID,
-    IN labels_in TEXT,
+    IN labels_in TEXT[],
     IN properties_in JSONB,
     IN mimetype_in TEXT,
     IN content_in TEXT,
