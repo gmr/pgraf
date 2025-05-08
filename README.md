@@ -16,6 +16,16 @@ pgraf turns PostgreSQL into a lightning fast property graph engine with vector s
 pip install pgraf
 ```
 
+### Database Setup
+
+Ensure [pgvector](https://github.com/pgvector/pgvector) is installed.
+
+DDL is located in [schema/pgraf.sql](schema/pgraf.sql)
+
+```sh
+psql -f schema/pgraf.sql
+```
+
 ## Usage
 
 ### Basic Example
@@ -31,33 +41,39 @@ async def main():
     try:
         # Add a simple node
         person = await pgraf.add_node(
-            node_type="person",
+            labels=["person"],
             properties={"name": "Alice", "age": 30}
         )
 
-        # Add a content node with vector embeddings
-        document = await pgraf.add_content_node(
+        # Add a node with content and vector embeddings
+        document = await pgraf.add_node(
+            labels=["document"],
             title="Sample Document",
-            source="user_upload",
+            properties={
+                "tags": ["example"],
+                "title": "Sample Document",
+                "url": "https://www.google.com"
+            },
             mimetype="text/plain",
-            content="This is a sample document that will be embedded in vector space.",
-            url=None,
-            properties={"tags": ["sample", "documentation"]}
+            content="This is a sample document that will be embedded in vector space."
         )
 
         # Create a relationship between nodes
         await pgraf.add_edge(
             source=person.id,
             target=document.id,
-            label="CREATED",
+            labels=["CREATED"],
             properties={"timestamp": "2023-01-01"}
         )
 
         # Retrieve nodes
-        all_people = await pgraf.get_nodes(
-            node_types=["person"],
+        all_people = []
+        async for node in pgraf.get_nodes(
+            labels=["person"],
             properties={"name": "Alice"}
-        )
+        ):
+            all_people.append(node)
+
 
         # Traverse the graph
         traversal_results = await pgraf.traverse(
@@ -74,8 +90,8 @@ async def main():
                 print(f"  via edge: {edge.label}")
 
     finally:
-        # Properly close connections
-        await pgraf.shutdown()
+        await pgraf.aclose()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -277,8 +277,12 @@ class PGraf:
                 )
             else:  # both
                 query = sql.SQL(
-                    'SELECT * FROM pgraf.edges '
-                    'WHERE source = %(node_id)s OR target = %(node_id)s'
+                    """\
+                    SELECT *
+                      FROM pgraf.edges
+                     WHERE source = %(node_id)s
+                        OR target = %(node_id)s
+                    """
                 )
 
             # Get all edges connected to this node
