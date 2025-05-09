@@ -177,7 +177,6 @@ class PGraf:
         query: str,
         properties: dict | None = None,
         labels: list[str] | None = None,
-        source: str | None = None,
         similarity_threshold: float = 0.1,
         limit: int = 10,
     ) -> list[models.SearchResult]:
@@ -194,11 +193,10 @@ class PGraf:
             'pgraf.search',
             {
                 'query': query,
-                'embeddings': vector[0],
-                'properties': json.Jsonb(properties) if properties else None,
                 'labels': labels,
+                'properties': json.Jsonb(properties) if properties else None,
+                'embeddings': vector[0],
                 'similarity': similarity_threshold,
-                'source': source,
                 'limit': limit,
             },
             models.SearchResult,
