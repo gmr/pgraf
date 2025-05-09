@@ -1,5 +1,10 @@
 # pgraf
 
+[![PyPI version](https://badge.fury.io/py/pgraf.svg)](https://badge.fury.io/py/pgraf)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://gmr.github.io/pgraf/)
+[![Python Version](https://img.shields.io/pypi/pyversions/pgraf)](https://pypi.org/project/pgraf/)
+[![License](https://img.shields.io/github/license/gmr/pgraf)](https://github.com/gmr/pgraf/blob/main/LICENSE)
+
 pgraf turns PostgreSQL into a lightning fast property graph engine with vector search capabilities, designed for use in AI agents and applications.
 
 ## Features
@@ -10,21 +15,40 @@ pgraf turns PostgreSQL into a lightning fast property graph engine with vector s
 - **Asynchronous API**: Modern async/await API for high-performance applications
 - **PostgreSQL Backend**: Uses PostgreSQL's power for reliability and scalability
 
+[**📚 Documentation**](https://gmr.github.io/pgraf/) | [**🚀 Quick Start**](https://gmr.github.io/pgraf/installation/) | [**📖 API Reference**](https://gmr.github.io/pgraf/api/graph/)
+
 ## Installation
 
+### Prerequisites
+
+- Python 3.12+
+- PostgreSQL 14+ with [pgvector](https://github.com/pgvector/pgvector) extension installed
+
+### Installing pgraf
+
 ```bash
+# From PyPI
 pip install pgraf
+
+# From source
+git clone https://github.com/gmr/pgraf.git
+cd pgraf
+pip install -e .
 ```
 
 ### Database Setup
 
-Ensure [pgvector](https://github.com/pgvector/pgvector) is installed.
+1. Create a database:
+   ```bash
+   createdb pgraf
+   ```
 
-DDL is located in [schema/pgraf.sql](schema/pgraf.sql)
+2. Apply the schema (includes pgvector extension creation):
+   ```bash
+   psql -d pgraf -f schema/pgraf.sql
+   ```
 
-```sh
-psql -f schema/pgraf.sql
-```
+The [schema file](schema/pgraf.sql) creates the pgvector extension, necessary tables, indexes, and stored procedures for the graph functionality.
 
 ## Usage
 
@@ -48,11 +72,10 @@ async def main():
         # Add a node with content and vector embeddings
         document = await pgraf.add_node(
             labels=["document"],
-            title="Sample Document",
             properties={
                 "tags": ["example"],
                 "title": "Sample Document",
-                "url": "https://www.google.com"
+                "url": "https://example.com"
             },
             mimetype="text/plain",
             content="This is a sample document that will be embedded in vector space."
@@ -74,7 +97,6 @@ async def main():
         ):
             all_people.append(node)
 
-
         # Traverse the graph
         traversal_results = await pgraf.traverse(
             start_node=person.id,
@@ -92,6 +114,79 @@ async def main():
     finally:
         await pgraf.aclose()
 
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Semantic Search Example
+
+```python
+import asyncio
+from pgraf import graph, models
+from sentence_transformers import SentenceTransformer
+
+async def main():
+    # Initialize the graph
+    pgraf = graph.PGraf(url="postgresql://postgres:postgres@localhost:5432/pgraf")
+
+    try:
+        # Add some documents with content for vector embedding
+        await pgraf.add_node(
+            labels=["document"],
+            properties={"title": "Climate Change Overview"},
+            content="Climate change is the long-term alteration of temperature and weather patterns.",
+            mimetype="text/plain"
+        )
+
+        await pgraf.add_node(
+            labels=["document"],
+            properties={"title": "Machine Learning Basics"},
+            content="Machine learning is a branch of AI focused on building models that learn from data.",
+            mimetype="text/plain"
+        )
+
+        await pgraf.add_node(
+            labels=["document"],
+            properties={"title": "Graph Databases"},
+            content="Graph databases store data in nodes and edges, representing entities and relationships.",
+            mimetype="text/plain"
+        )
+
+        # Embed all nodes that have content
+        # pgraf will use sentence_transformers to generate embeddings
+        await pgraf.generate_embeddings()
+
+        # Perform semantic search
+        # This automatically generates an embedding for the query text
+        results = await pgraf.search_by_text(
+            query="How do databases represent connections between data points?",
+            labels=["document"],
+            limit=2
+        )
+
+        # Print results sorted by relevance
+        for result in results:
+            print(f"Match: {result.properties.get('title')} (Score: {result.similarity:.4f})")
+            print(f"Content: {result.content[:100]}...")
+            print()
+
+        # Vector search with custom embedding
+        # You can also provide your own embedding for search
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        query_embedding = model.encode("AI techniques for data analysis")
+
+        custom_results = await pgraf.search_by_vector(
+            embedding=models.Embedding(value=query_embedding),
+            labels=["document"],
+            limit=2
+        )
+
+        for result in custom_results:
+            print(f"Custom search match: {result.properties.get('title')} (Score: {result.similarity:.4f})")
+
+    finally:
+        await pgraf.aclose()
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,0 +1,3 @@
+# Embeddings
+
+::: pgraf.embeddings
