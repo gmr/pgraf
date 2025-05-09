@@ -13,7 +13,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class PGraf:
-    """Manage and Search the Graph"""
+    """Manage and Search the Property Graph.
+
+    The PGraf class is the main entry point for interacting with the graph
+    database. It provides methods for adding nodes and edges, querying,
+    traversing the graph, and performing vector similarity searches.
+
+    Args:
+        url: PostgreSQL connection URL
+        pool_min_size: Minimum number of connections in the pool
+        pool_max_size: Maximum number of connections in the pool
+    """
 
     def __init__(
         self,
@@ -21,6 +31,13 @@ class PGraf:
         pool_min_size: int = 1,
         pool_max_size: int = 10,
     ) -> None:
+        """Initialize a new PGraf instance.
+
+        Args:
+            url: PostgreSQL connection URL
+            pool_min_size: Minimum number of connections in the pool
+            pool_max_size: Maximum number of connections in the pool
+        """
         self._embeddings = embeddings.Embeddings()
         self._postgres = postgres.Postgres(url, pool_min_size, pool_max_size)
 
@@ -57,7 +74,7 @@ class PGraf:
         ) as cursor:
             result: models.Node = await cursor.fetchone()  # type: ignore
         if value.content is not None:
-            await self._upsert_embeddings(value.id, value.content)
+            await self._add_embeddings(value.id, value.content)
         return result
 
     async def delete_node(self, node_id: uuid.UUID) -> bool:
@@ -105,7 +122,7 @@ class PGraf:
         ) as cursor:
             result: models.Node = await cursor.fetchone()  # type: ignore
         if result.content is not None:
-            await self._upsert_embeddings(result.id, result.content)
+            await self._add_embeddings(result.id, result.content)
         return result
 
     async def add_edge(
@@ -393,9 +410,7 @@ class PGraf:
         async with self._postgres.execute(query) as cursor:
             return [row['key'] for row in await cursor.fetchall()]  # type: ignore
 
-    async def _upsert_embeddings(
-        self, node_id: uuid.UUID, content: str
-    ) -> None:
+    async def _add_embeddings(self, node_id: uuid.UUID, content: str) -> None:
         """Chunk the content and write the embeddings"""
         for offset, value in enumerate(self._embeddings.get(content)):
             async with self._postgres.callproc(

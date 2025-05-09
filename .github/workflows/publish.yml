@@ -15,6 +15,9 @@ jobs:
       with:
         python-version: '3.12'
 
+    - name: Install Hatch
+      uses: pypa/hatch@install
+
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
@@ -30,3 +33,7 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+
+    - name: "Deploy docs"
+      run: |
+        hatch run github-pages

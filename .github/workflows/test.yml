@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install Hatch
+        uses: pypa/hatch@install
+
       - uses: hoverkraft-tech/compose-action@v2.2.0
         with:
           compose-file: "./compose.yml"

@@ -12,23 +12,23 @@ license = 'BSD-3-clause'
 license-files = ["LICENSE"]
 authors = [{ name = "Gavin M. Roy", email = "gavinr@aweber.com" }]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
 
 dependencies = [
-    "asyncstdlib>=3.13.1,<4",
-    "openai>=1.74.0,<2",
-    "orjson>=3.10,<4",
-    "pgvector>=0.4.1,<5",
-    "psycopg[pool]>=3.2.4,<4",
-    "pydantic>=2.11.3,<3",
-    "sentence_transformers>=4.1.0,<5",
-    "uuid_utils>=0.10.0,<0.11.0"
+  "asyncstdlib>=3.13.1,<4",
+  "openai>=1.74.0,<2",
+  "orjson>=3.10,<4",
+  "pgvector>=0.4.1,<5",
+  "psycopg[pool]>=3.2.4,<4",
+  "pydantic>=2.11.3,<3",
+  "sentence_transformers>=4.1.0,<5",
+  "uuid_utils>=0.10.0,<0.11.0"
 ]
 
 [project.urls]
@@ -49,28 +49,56 @@ include = ["pgraf"]
 
 [tool.hatch.build.force-include]
 "pgraf/py.typed" = "pgraf/py.typed"
+"schema/pgraf.sql" = "pgraf/schema.sql"
+
+[tool.hatch.envs.ci]
+dependencies = [
+  "coverage[toml]>=7.4,<8",
+  "pytest>=8,<9",
+]
+
+[tool.hatch.envs.default.scripts]
+github-pages = ["mkdocs gh-deploy --force"]
+serve-docs = ["mkdocs serve"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 
+[tool.mkdocs]
+config-file = "mkdocs.yml"
+
 [project.optional-dependencies]
 dev = [
-    "build",
-    "mypy",
-    "pre-commit",
-    "pytest",
-    "pytest-cov",
-    "ruff",
-    "pyyaml"
+  "black",  # used by mkdocs for signature formatting
+  "build>=1,<2",
+  "mkdocs>=1.5,<2",
+  "mkdocs-material>9.5,<10",
+  "mkdocstrings[python]>=0.26,<0.27",
+  "mkdocstrings-python-xref>=1.6,<2",
+  "mypy>=1.7,<2",
+  "pre-commit>=4,<6",
+  "pytest>=8,<9",
+  "pytest-cov",
+  "ruff>=0.8,<1",
+  "pyyaml"
 ]
 
 [tool.mypy]
-plugins = ['pydantic.mypy']
+disallow_redefinition = true
+implicit_optional = false
+mypy_path = ["pgraf"]
+plugins = "pydantic.mypy"
+skip_version_check = true
+warn_unreachable = true
 
 [[tool.mypy.overrides]]
 module = ["pgvector.psycopg.*"]
 follow_untyped_imports = true
+disable_error_code = [
+  # until mypy undestands self.assertIsNone() python/mypy#4063
+  "union-attr",
+]
 
 [tool.ruff]
 line-length = 79
@@ -85,25 +113,25 @@ skip-magic-trailing-comma = true
 
 [tool.ruff.lint]
 select = [
-    "ASYNC", # flake8-async
-    "B", # flake8-bugbear
-    "BLE", # flake8-blind-except
-    "C4", # flake8-comprehensions
-    "DTZ", # flake8-datetimez
-    "E", "W", # pycodestyle
-    "F", # pyflakes
-    "G", # flake8-logging-format
-    "I", # isort
-    "S", # flake8-bandit
-    "T20", # flake8-print
-    "UP", # pyupgrade
-    "F401", # unused imports
-    "F841", # unused variables
-    "B027", # empty method in abstract base class
-    "B905", # zip() without explicit strict parameter
+  "ASYNC", # flake8-async
+  "B", # flake8-bugbear
+  "BLE", # flake8-blind-except
+  "C4", # flake8-comprehensions
+  "DTZ", # flake8-datetimez
+  "E", "W", # pycodestyle
+  "F", # pyflakes
+  "G", # flake8-logging-format
+  "I", # isort
+  "S", # flake8-bandit
+  "T20", # flake8-print
+  "UP", # pyupgrade
+  "F401", # unused imports
+  "F841", # unused variables
+  "B027", # empty method in abstract base class
+  "B905", # zip() without explicit strict parameter
 ]
 ignore = [
-    "RSE", # contradicts Python Style Guide
+  "RSE", # contradicts Python Style Guide
 ]
 flake8-quotes = { inline-quotes = "single" }
 isort.split-on-trailing-comma = false

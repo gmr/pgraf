@@ -9,16 +9,35 @@ from pgraf import utils
 
 
 class _GraphModel(pydantic.BaseModel):
-    """Base model to auto serialize/deserialize the jsonb field in Postgres"""
+    """Base model to auto serialize/deserialize the jsonb field in Postgres.
+
+    This is the base class for all graph models (Node, Edge) in pgraf.
+    It provides common fields and functionality for serialization and
+    deserialization.
+
+    Attributes:
+        created_at: Timestamp when the model was created
+        modified_at: Timestamp when the model was last modified
+        properties: Dictionary of arbitrary properties associated with
+        the model
+        labels: List of labels for categorizing the model
+    """
 
     created_at: datetime.datetime = pydantic.Field(
-        default_factory=utils.current_timestamp
+        default_factory=utils.current_timestamp,
+        description='Timestamp when the model was created',
     )
-    modified_at: datetime.datetime | None = None
+    modified_at: datetime.datetime | None = pydantic.Field(
+        default=None, description='Timestamp when the model was last modified'
+    )
     properties: dict[str, typing.Any] = pydantic.Field(
-        default_factory=lambda: {}
+        default_factory=lambda: {},
+        description='Dictionary of arbitrary properties for the model',
     )
-    labels: list[str] = pydantic.Field(default_factory=list)
+    labels: list[str] = pydantic.Field(
+        default_factory=list,
+        description='List of labels for categorizing the model',
+    )
 
     @property
     def latest_timestamp(self) -> datetime.datetime:
