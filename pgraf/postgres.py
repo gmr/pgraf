@@ -145,7 +145,7 @@ class Postgres:
         schema = 'public'
         if '.' in proc_name:
             schema, proc_name = proc_name.split('.')
-        statement: list[str | sql.Identifier | sql.Placeholder | sql.SQL] = [
+        statement: list[str | sql.Composable] = [
             sql.SQL('SELECT * FROM '),
             sql.Identifier(schema),
             sql.SQL('.'),
@@ -157,8 +157,8 @@ class Postgres:
                 statement.append(sql.Placeholder(name))
             else:
                 statement.append(
-                    sql.Placeholder(name) + sql.SQL(f'::{col_type}')
-                )  # type: ignore
+                    sql.Placeholder(name) + sql.SQL('::') + sql.SQL(col_type)  # type: ignore
+                )
             statement.append(sql.SQL(', '))
         if len(statement) > 5:  # Strip the last ,
             statement = statement[:-1]
