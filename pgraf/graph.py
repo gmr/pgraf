@@ -145,7 +145,11 @@ class PGraf:
             return await cursor.fetchone()  # type: ignore
 
     async def delete_edge(self, source: uuid.UUID, target: uuid.UUID) -> bool:
-        """Remove an edge, severing the relationship between two nodes"""
+        """Remove an edge, severing the relationship between two nodes
+
+        Note: This is a directional operation. It only removes the edge going
+        from source to target, not from target to source.
+        """
         async with self._postgres.callproc(
             'pgraf.delete_edge', {'source': source, 'target': target}
         ) as cursor:
@@ -154,11 +158,17 @@ class PGraf:
 
     async def get_edge(
         self, source: uuid.UUID, target: uuid.UUID
-    ) -> models.Edge:
-        """Add an edge, linking two nodes in the graph"""
+    ) -> models.Edge | None:
+        """Retrieve an edge from source to target
+
+        Note: This is a directional operation. It only retrieves the edge going
+        from source to target, not from target to source.
+        """
         async with self._postgres.callproc(
             'pgraf.get_edge', {'source': source, 'target': target}, models.Edge
         ) as cursor:
+            if cursor.rowcount == 0:
+                return None
             return await cursor.fetchone()  # type: ignore
 
     async def get_edges(

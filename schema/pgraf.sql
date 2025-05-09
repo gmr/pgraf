@@ -191,8 +191,7 @@ CREATE OR REPLACE FUNCTION pgraf.delete_edge(
 $$
 WITH deleted AS (
     DELETE FROM pgraf.edges
-          WHERE (source = source_in AND target = target_in)
-             OR (source = target_in AND target = source_in)
+          WHERE source = source_in AND target = target_in
       RETURNING *)
 SELECT count(*);
 $$ LANGUAGE SQL;
@@ -202,8 +201,7 @@ CREATE OR REPLACE FUNCTION pgraf.get_edge(IN source_in UUID, IN target_in UUID)
 $$
 SELECT source, target, created_at, modified_at, labels, properties
   FROM pgraf.edges
- WHERE (source = source_in AND target = target_in)
-    OR (source = target_in AND target = source_in)
+ WHERE source = source_in AND target = target_in
 $$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION update_edge(
@@ -214,13 +212,11 @@ CREATE OR REPLACE FUNCTION update_edge(
     IN properties_in JSONB)
     RETURNS SETOF pgraf.edges AS
 $$
-    -- Intentionally don't change when the record was created
    UPDATE pgraf.edges
       SET modified_at = modified_at_in,
           labels = labels_in,
           properties = properties_in
-    WHERE (source = source_in AND target = target_in)
-       OR (source = target_in AND target = source_in)
+    WHERE source = source_in AND target = target_in
 RETURNING *
 $$ LANGUAGE SQL;
 
