@@ -17,7 +17,12 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
-  "Topic :: Scientific/Engineering :: Artificial Intelligence"
+  "Programming Language :: PL/SQL",
+  "Programming Language :: SQL",
+  "Topic :: Database",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed"
 ]
 
 dependencies = [
