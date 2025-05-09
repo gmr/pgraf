@@ -88,7 +88,7 @@ CREATE OR REPLACE FUNCTION add_node(
 INSERT INTO pgraf.nodes (id, created_at, modified_at, labels, properties, mimetype, content, vector)
      VALUES (id_in, created_at_in, modified_at_in, labels_in,
              properties_in, mimetype_in, content_in,
-             CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) ELSE NULL END)
+             CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) END)
   RETURNING id, created_at, modified_at, labels, properties, mimetype, content;
 $$ LANGUAGE sql;
 
@@ -150,9 +150,8 @@ BEGIN
           properties = properties_in,
           mimetype = mimetype_in,
           content = content_in,
-          vector = CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) ELSE NULL END
+          vector = CASE WHEN content_in IS NOT NULL THEN to_tsvector(content_in) END
     WHERE nodes.id = id_in;
-   -- Return the updated record
    RETURN QUERY
    SELECT n.id,
           n.created_at,

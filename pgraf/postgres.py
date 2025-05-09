@@ -145,7 +145,7 @@ class Postgres:
         schema = 'public'
         if '.' in proc_name:
             schema, proc_name = proc_name.split('.')
-        statement: list[str | sql.Identifier | sql.SQL] = [
+        statement: list[str | sql.Identifier | sql.Placeholder | sql.SQL] = [
             sql.SQL('SELECT * FROM '),
             sql.Identifier(schema),
             sql.SQL('.'),
@@ -154,13 +154,16 @@ class Postgres:
         ]
         async for name, col_type in self._callproc_columns(proc_name, schema):
             if col_type is None:
-                statement.append(sql.SQL(f'%({name})s'))  # type: ignore
+                statement.append(sql.Placeholder(name))
             else:
-                statement.append(sql.SQL(f'%({name})s::{col_type}'))  # type: ignore
+                statement.append(
+                    sql.Placeholder(name) + sql.SQL(f'::{col_type}')
+                )  # type: ignore
             statement.append(sql.SQL(', '))
         if len(statement) > 5:  # Strip the last ,
             statement = statement[:-1]
         statement.append(sql.SQL(')'))
+        LOGGER.debug('callproc: %s', sql.Composed(statement).as_string())
         return sql.Composed(statement)
 
     @staticmethod
