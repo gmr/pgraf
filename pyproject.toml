@@ -49,12 +49,14 @@ branch = true
 source = ["pgraf"]
 command_line = "-m unittest discover tests --buffer --verbose"
 
+[tool.hatch.build.targets.sdist]
+include = ["LICENSE", "README.md", "docs", "pgraf", "schema"]
+
 [tool.hatch.build.targets.wheel]
-include = ["pgraf"]
+include = ["LICENSE", "README.md", "docs", "pgraf", "schema"]
 
 [tool.hatch.build.force-include]
 "pgraf/py.typed" = "pgraf/py.typed"
-"schema/pgraf.sql" = "pgraf/schema.sql"
 
 [tool.hatch.envs.ci]
 dependencies = [
