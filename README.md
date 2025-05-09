@@ -107,9 +107,9 @@ async def main():
 
         # Print traversal results
         for node, edge in traversal_results:
-            print(f"Node: {node.type} {node.id}")
+            print(f"Node: {node.labels[0] if node.labels else 'Unknown'} {node.id}")
             if edge:
-                print(f"  via edge: {edge.label}")
+                print(f"  via edge: {edge.labels[0] if edge.labels else 'Unknown'}")
 
     finally:
         await pgraf.aclose()
@@ -153,13 +153,12 @@ async def main():
             mimetype="text/plain"
         )
 
-        # Embed all nodes that have content
-        # pgraf will use sentence_transformers to generate embeddings
-        await pgraf.generate_embeddings()
+        # No need to explicitly generate embeddings - they're created
+        # automatically when nodes with content are added
 
         # Perform semantic search
         # This automatically generates an embedding for the query text
-        results = await pgraf.search_by_text(
+        results = await pgraf.search(
             query="How do databases represent connections between data points?",
             labels=["document"],
             limit=2
@@ -171,14 +170,15 @@ async def main():
             print(f"Content: {result.content[:100]}...")
             print()
 
-        # Vector search with custom embedding
-        # You can also provide your own embedding for search
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        query_embedding = model.encode("AI techniques for data analysis")
+        # For custom queries, the search method automatically converts query to embeddings
+        # You just need to provide the query text, and it will use the internal embedding model
+        query_text = "AI techniques for data analysis"
 
-        custom_results = await pgraf.search_by_vector(
-            embedding=models.Embedding(value=query_embedding),
+        # The search method handles embedding generation internally
+        custom_results = await pgraf.search(
+            query=query_text,
             labels=["document"],
+            similarity_threshold=0.3,  # Adjust similarity threshold as needed
             limit=2
         )
 
