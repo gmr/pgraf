@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS nodes
 );
 
 -- Example Unique Indexes - will depend on your data model
-CREATE UNIQUE INDEX confluence_page_id ON pgraf.nodes ((properties->'page_id'));
-CREATE UNIQUE INDEX user_email_address ON pgraf.nodes ((properties->'email_address'));
+-- CREATE UNIQUE INDEX confluence_page_id ON pgraf.nodes ((properties->'page_id'));
+-- CREATE UNIQUE INDEX user_email_address ON pgraf.nodes ((properties->'email_address'));
 
 CREATE INDEX IF NOT EXISTS node_tsvector_idx ON nodes USING GIN (vector);
 
