@@ -470,6 +470,86 @@ class GraphTestCase(common.PostgresTestCase):
         await self.graph.delete_node(target_node1.id)
         await self.graph.delete_node(target_node2.id)
 
+    async def test_get_edges(self) -> None:
+        """Test retrieving edges with different filtering criteria"""
+        # Create nodes to connect with edges
+        person1 = await self.graph.add_node(
+            labels=['Person'], properties={'name': 'Dave'}
+        )
+        person2 = await self.graph.add_node(
+            labels=['Person'], properties={'name': 'Eve'}
+        )
+        location = await self.graph.add_node(
+            labels=['Location'], properties={'name': 'Chicago'}
+        )
+
+        # Create edges with different labels and properties
+        await self.graph.add_edge(
+            source=person1.id,
+            target=person2.id,
+            labels=['FRIENDS_WITH'],
+            properties={'since': 2021, 'strength': 'close'},
+        )
+
+        await self.graph.add_edge(
+            source=person1.id,
+            target=location.id,
+            labels=['VISITED'],
+            properties={'year': 2022, 'duration': '1 week'},
+        )
+
+        await self.graph.add_edge(
+            source=person2.id,
+            target=location.id,
+            labels=['LIVES_IN'],
+            properties={'since': 2019},
+        )
+
+        # Test 1: Get all edges
+        count = 0
+        async for edge in self.graph.get_edges():
+            self.assertIsInstance(edge, models.Edge)
+            count += 1
+        self.assertEqual(count, 3)
+
+        # Test 2: Filter by label
+        count = 0
+        async for edge in self.graph.get_edges(labels=['VISITED']):
+            self.assertIn('VISITED', edge.labels)
+            count += 1
+        self.assertEqual(count, 1)
+
+        # Test 3: Filter by property
+        count = 0
+        async for edge in self.graph.get_edges(properties={'since': 2021}):
+            self.assertEqual(edge.properties.get('since'), 2021)
+            count += 1
+        self.assertEqual(count, 1)
+
+        # Test 4: Filter by both label and property
+        count = 0
+        async for edge in self.graph.get_edges(
+            labels=['LIVES_IN'], properties={'since': 2019}
+        ):
+            self.assertIn('LIVES_IN', edge.labels)
+            self.assertEqual(edge.properties.get('since'), 2019)
+            count += 1
+        self.assertEqual(count, 1)
+
+        # Test 5: Filter with no matches
+        count = 0
+        async for _ in self.graph.get_edges(labels=['DOES_NOT_EXIST']):
+            count += 1
+        self.assertEqual(count, 0)
+
+        # Clean up
+        await self.graph.delete_edge(person1.id, person2.id)
+        await self.graph.delete_edge(person1.id, location.id)
+        await self.graph.delete_edge(person2.id, location.id)
+        await self.graph.delete_node(person1.id)
+        await self.graph.delete_node(person2.id)
+        await self.graph.delete_node(location.id)
+
     async def test_search_functionality(self) -> None:
         """Test searching nodes based on content embeddings"""
 

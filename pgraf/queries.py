@@ -3,6 +3,16 @@ SQL Queries
 ===========
 """
 
+GET_EDGES = """
+   SELECT source,
+          target,
+          created_at,
+          modified_at,
+          labels,
+          properties
+     FROM pgraf.edges
+"""
+
 GET_NODES = """
    SELECT id,
           created_at,

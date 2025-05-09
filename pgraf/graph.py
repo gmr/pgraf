@@ -86,38 +86,14 @@ class PGraf:
         return await self._get_properties('nodes')
 
     async def get_nodes(
-        self, properties: dict | None = None, labels: list[str] | None = None
+        self, labels: list[str] | None = None, properties: dict | None = None
     ) -> typing.AsyncGenerator[models.Node, None]:
         """Get all nodes matching the criteria"""
-        statement: list[str | sql.Composable] = [
-            sql.SQL(queries.GET_NODES) + sql.SQL(' ')  # type: ignore
-        ]
-        where: list[sql.Composable] = []
-        parameters = {}
-        if labels:
-            parameters['labels'] = labels
-            where.append(sql.SQL('labels && %(labels)s'))
-        if properties:
-            props = []
-            for key, value in properties.items():
-                props.append(
-                    sql.SQL(
-                        f"properties->>'{key}' = "  # type: ignore
-                        f'%(props_{key})s'
-                    )
-                )
-                parameters[f'props_{key}'] = value
-            if len(props) > 1:
-                where.append(
-                    sql.SQL('(') + sql.SQL(' OR ').join(props) + sql.SQL(')')
-                )
-            else:
-                where.append(props[0])
-        if where:
-            statement.append(sql.SQL('WHERE '))
-            statement.append(sql.SQL(' AND ').join(where))
+        statement, parameters = self._build_statement(
+            queries.GET_NODES, labels, properties
+        )
         async with self._postgres.execute(
-            sql.Composed(statement), parameters, models.Node
+            statement, parameters, models.Node
         ) as cursor:
             async for row in cursor:
                 yield models.Node.model_validate(row)
@@ -167,6 +143,19 @@ class PGraf:
             'pgraf.get_edge', {'source': source, 'target': target}, models.Edge
         ) as cursor:
             return await cursor.fetchone()  # type: ignore
+
+    async def get_edges(
+        self, labels: list[str] | None = None, properties: dict | None = None
+    ) -> typing.AsyncGenerator[models.Edge, None]:
+        """Get edges by criteria"""
+        statement, parameters = self._build_statement(
+            queries.GET_EDGES, labels, properties
+        )
+        async with self._postgres.execute(
+            statement, parameters, models.Edge
+        ) as cursor:
+            async for row in cursor:
+                yield models.Edge.model_validate(row)
 
     async def get_edge_labels(self) -> list[str]:
         """Retrieve all of the edge labels in the graph"""
@@ -325,17 +314,52 @@ class PGraf:
                     if len(results) >= limit:
                         return
 
-        # Start the traversal
         await traverse_recursive(start_node)
-
-        # Log traversal results
         LOGGER.debug(
             'Traverse results: %s items, visited %s nodes',
             len(results),
             len(visited_nodes),
         )
-
         return results
+
+    @staticmethod
+    def _build_statement(
+        select: str,
+        labels: list[str] | None = None,
+        properties: dict | None = None,
+    ) -> tuple[sql.Composable, dict[str, typing.Any]]:
+        """Generate the SQL for get_edges and get_nodes"""
+        parameters: dict[str, typing.Any] = {}
+        statement: list[str | sql.Composable] = [
+            sql.SQL(select) + sql.SQL(' ')  # type: ignore
+        ]
+        if not labels and not properties:
+            return sql.Composed(statement), parameters
+        where: list[sql.Composable] = []
+        if labels:
+            parameters['labels'] = labels
+            where.append(
+                sql.SQL('labels') + sql.SQL(' && ') + sql.Placeholder('labels')
+            )
+        if properties:
+            props = []
+            for key, value in properties.items():
+                props.append(
+                    sql.SQL(f"properties->>'{key}'")  # type: ignore
+                    + sql.SQL(' = ')
+                    + sql.Placeholder(f'props_{key}')
+                )
+                parameters[f'props_{key}'] = str(value)
+            if len(props) > 1:
+                where.append(
+                    sql.SQL('(') + sql.SQL(' OR ').join(props) + sql.SQL(')')
+                )
+            else:
+                where.append(props[0])
+        if where:
+            statement.append(sql.SQL('WHERE '))
+            statement.append(sql.SQL(' AND ').join(where))
+        return sql.Composed(statement), parameters
 
     async def _get_labels(self, table: str) -> list[str]:
         """Dynamically construct the query to get distinct labels"""
