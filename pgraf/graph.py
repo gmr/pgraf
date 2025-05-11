@@ -202,10 +202,11 @@ class PGraf:
     async def search(
         self,
         query: str,
-        properties: dict | None = None,
         labels: list[str] | None = None,
+        properties: dict | None = None,
         similarity_threshold: float = 0.1,
         limit: int = 10,
+        offset: int = 0,
     ) -> list[models.SearchResult]:
         """Search the content nodes in the graph, optionally filtering by
         properties, node types, and the edges labels.
@@ -225,6 +226,7 @@ class PGraf:
                 'embeddings': vector[0],
                 'similarity': similarity_threshold,
                 'limit': limit,
+                'offset': offset,
             },
             models.SearchResult,
         ) as cursor:

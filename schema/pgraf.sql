@@ -165,6 +165,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION add_embedding(
+    IN node_in UUID,
+    IN chunk_in INT4,
+    IN value_in vector(384),
+    OUT success BOOL) AS
+$$
+    WITH inserted AS (
+        INSERT INTO pgraf.embeddings (node, chunk, value)
+             VALUES (node_in, chunk_in, value_in)
+          RETURNING node, chunk)
+    SELECT EXISTS (SELECT 1 FROM inserted) AS success;
+$$ LANGUAGE SQL;
+
 CREATE OR REPLACE FUNCTION add_edge(
     IN source_in UUID,
     IN target_in UUID,
@@ -221,26 +234,122 @@ RETURNING *
 $$ LANGUAGE SQL;
 
 
-CREATE OR REPLACE FUNCTION add_embedding(
-    IN node_in UUID,
-    IN chunk_in INT4,
-    IN value_in vector(384),
-    OUT success BOOL) AS
-$$
-    WITH inserted AS (
-        INSERT INTO pgraf.embeddings (node, chunk, value)
-             VALUES (node_in, chunk_in, value_in)
-          RETURNING node, chunk)
-    SELECT EXISTS (SELECT 1 FROM inserted) AS success;
-$$ LANGUAGE SQL;
+CREATE OR REPLACE FUNCTION pgraf.jsonb_filter(
+    document JSONB,
+    filter_pattern JSONB
+) RETURNS BOOLEAN AS $$
+DECLARE
+    filter_key TEXT;
+    filter_value JSONB;  -- Renamed from 'value' to 'filter_value'
+    op TEXT;
+    filter_keys TEXT[];
+BEGIN
+    -- If filter is null or empty, return true (no filtering)
+    IF filter_pattern IS NULL OR filter_pattern = '{}'::jsonb THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Extract keys from the filter pattern
+    filter_keys := ARRAY(SELECT jsonb_object_keys(filter_pattern));
+
+    -- Process each key in the filter
+    FOREACH filter_key IN ARRAY filter_keys LOOP
+        filter_value := filter_pattern -> filter_key;  -- Using renamed variable
+
+        -- Default operator is equality
+        op := '=';
+
+        -- Check for special operator keys prefixed with $
+        IF filter_key LIKE '$%' THEN
+            CASE filter_key
+                WHEN '$contains' THEN
+                    -- Array containment check against all properties
+                    RETURN (SELECT BOOL_OR(
+                        CASE WHEN jsonb_typeof(document -> prop_key) = 'array' THEN
+                            EXISTS (
+                                SELECT 1
+                                FROM jsonb_array_elements(document -> prop_key) AS elem
+                                WHERE elem @> filter_value OR elem <@ filter_value OR elem = filter_value
+                            )
+                        ELSE FALSE
+                        END
+                    )
+                    FROM jsonb_object_keys(document) AS prop_key);
+
+                WHEN '$allOf' THEN
+                    -- Must match all conditions in the array
+                    RETURN (SELECT BOOL_AND(pgraf.jsonb_filter(document, elem))
+                           FROM jsonb_array_elements(filter_value) AS elem);
+
+                WHEN '$anyOf' THEN
+                    -- Must match any condition in the array
+                    RETURN (SELECT BOOL_OR(pgraf.jsonb_filter(document, elem))
+                           FROM jsonb_array_elements(filter_value) AS elem);
+
+                WHEN '$notEqual' THEN
+                    -- Recursively check filter doesn't match
+                    RETURN NOT pgraf.jsonb_filter(document, filter_value);
+
+                ELSE
+                    RAISE EXCEPTION 'Unknown operator %', filter_key;
+            END CASE;
+        END IF;
+
+        -- Handle normal property checks
+        IF NOT document ? filter_key THEN
+            RETURN FALSE;
+        END IF;
+
+        -- Handle different value types
+        CASE jsonb_typeof(filter_value)
+            WHEN 'object' THEN
+                -- If the value is an object, recurse with that object as a filter
+                IF jsonb_typeof(document -> filter_key) != 'object' THEN
+                    RETURN FALSE;
+                END IF;
+                IF NOT pgraf.jsonb_filter(document -> filter_key, filter_value) THEN
+                    RETURN FALSE;
+                END IF;
+
+            WHEN 'array' THEN
+                -- If the value is an array, check for overlap with document array
+                IF jsonb_typeof(document -> filter_key) != 'array' THEN
+                    RETURN FALSE;
+                END IF;
+
+                -- Check if any element in the filter array exists in the document array
+                -- Use the renamed variable and add explicit aliasing
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(document -> filter_key) AS doc_elem
+                    JOIN jsonb_array_elements(filter_value) AS filter_elem
+                      ON doc_elem = filter_elem
+                ) THEN
+                    RETURN FALSE;
+                END IF;
+
+            ELSE
+                -- For scalar values, simple equality check
+                IF document -> filter_key != filter_value THEN
+                    RETURN FALSE;
+                END IF;
+        END CASE;
+    END LOOP;
+
+    -- All checks passed
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION pgraf.search(
     query_in TEXT,
     embeddings_in vector(384),
-    properties_in JSONB DEFAULT NULL,
     labels_in TEXT[] DEFAULT NULL,
+    properties_in JSONB DEFAULT NULL,
     similarity_in FLOAT4 DEFAULT 0.5,
     limit_in INT4 DEFAULT 100,
+    offset_in INT4 DEFAULT 0,
     OUT id UUID,
     OUT created_at TIMESTAMP WITH TIME ZONE,
     OUT modified_at TIMESTAMP WITH TIME ZONE,
@@ -259,7 +368,7 @@ CREATE OR REPLACE FUNCTION pgraf.search(
          WHERE vector_dims(e.value) = vector_dims(embeddings_in)
            AND 1 - (e.value <=> embeddings_in) > similarity_in
            AND (labels_in IS NULL OR n.labels && labels_in)
-           AND (properties_in IS NULL OR n.properties @> properties_in)
+           AND (properties_in IS NULL OR pgraf.jsonb_filter(n.properties, properties_in))
       GROUP BY e.node
       ORDER BY similarity DESC
          LIMIT limit_in),
@@ -270,7 +379,7 @@ CREATE OR REPLACE FUNCTION pgraf.search(
          WHERE n.vector @@ plainto_tsquery(query_in)
            AND ts_rank_cd(n.vector, plainto_tsquery(query_in)) > similarity_in
            AND (labels_in IS NULL OR n.labels && labels_in)
-           AND (properties_in IS NULL OR n.properties @> properties_in)
+           AND (properties_in IS NULL OR pgraf.jsonb_filter(n.properties, properties_in))
       ORDER BY similarity DESC
          LIMIT limit_in),
      combined_results AS (
@@ -293,4 +402,5 @@ CREATE OR REPLACE FUNCTION pgraf.search(
            ON n.id = cr.node
      ORDER BY cr.similarity DESC
         LIMIT limit_in
+       OFFSET offset_in
 $$ LANGUAGE sql;
