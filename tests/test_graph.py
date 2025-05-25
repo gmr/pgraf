@@ -26,13 +26,14 @@ class GraphTestCase(common.PostgresTestCase):
 
         value = await self.graph.get_node(node.id)
         self.assertIsNotNone(value)
-        self.assertEqual(value.id, node.id)
-        self.assertListEqual(value.labels, node.labels)
+        if value:
+            self.assertEqual(value.id, node.id)
+            self.assertListEqual(value.labels, node.labels)
 
-        deleted = await self.graph.delete_node(value.id)
+        deleted = await self.graph.delete_node(value.id if value else node.id)
         self.assertTrue(deleted)
 
-        result = await self.graph.get_node(value.id)
+        result = await self.graph.get_node(value.id if value else node.id)
         self.assertIsNone(result)
 
     async def test_get_nodes(self) -> None:
@@ -105,11 +106,12 @@ class GraphTestCase(common.PostgresTestCase):
         # Check that the modifications are persisted
         retrieved_node = await self.graph.get_node(node.id)
         self.assertIsNotNone(retrieved_node)
-        self.assertEqual(retrieved_node.properties.get('age'), 29)
-        self.assertEqual(
-            retrieved_node.properties.get('occupation'), 'Engineer'
-        )
-        self.assertIn('Employee', retrieved_node.labels)
+        if retrieved_node:
+            self.assertEqual(retrieved_node.properties.get('age'), 29)
+            self.assertEqual(
+                retrieved_node.properties.get('occupation'), 'Engineer'
+            )
+            self.assertIn('Employee', retrieved_node.labels)
 
         # Test updating content
         node.content = 'This is some test content for embedding'
@@ -174,12 +176,13 @@ class GraphTestCase(common.PostgresTestCase):
         # Retrieve the node to verify labels were saved correctly
         retrieved_node = await self.graph.get_node(special_labels_node.id)
         self.assertIsNotNone(retrieved_node)
-        self.assertIn('Label:With:Colons', retrieved_node.labels)
-        self.assertIn('Label-With-Hyphens', retrieved_node.labels)
-        self.assertIn('Label.With.Dots', retrieved_node.labels)
-        self.assertIn('Label With Spaces', retrieved_node.labels)
-        self.assertIn('UPPER_CASE_LABEL', retrieved_node.labels)
-        self.assertIn('special!@#$%^&*()', retrieved_node.labels)
+        if retrieved_node:
+            self.assertIn('Label:With:Colons', retrieved_node.labels)
+            self.assertIn('Label-With-Hyphens', retrieved_node.labels)
+            self.assertIn('Label.With.Dots', retrieved_node.labels)
+            self.assertIn('Label With Spaces', retrieved_node.labels)
+            self.assertIn('UPPER_CASE_LABEL', retrieved_node.labels)
+            self.assertIn('special!@#$%^&*()', retrieved_node.labels)
 
         # Test duplicate labels (should be preserved in the model but may be
         # deduplicated in the database - implementation-specific)
@@ -271,17 +274,18 @@ class GraphTestCase(common.PostgresTestCase):
         # Retrieve the node to verify properties were saved correctly
         retrieved_node = await self.graph.get_node(special_chars_node.id)
         self.assertIsNotNone(retrieved_node)
-        self.assertEqual(
-            retrieved_node.properties.get('quotes'),
-            'Text with \'single\' and "double" quotes',
-        )
-        self.assertEqual(
-            retrieved_node.properties.get('unicode'),
-            'Unicode: 你好, こんにちは, Привет',
-        )
-        self.assertEqual(
-            retrieved_node.properties.get('emoji'), 'Emoji: 😀 🚀 🌍'
-        )
+        if retrieved_node:
+            self.assertEqual(
+                retrieved_node.properties.get('quotes'),
+                'Text with \'single\' and "double" quotes',
+            )
+            self.assertEqual(
+                retrieved_node.properties.get('unicode'),
+                'Unicode: 你好, こんにちは, Привет',
+            )
+            self.assertEqual(
+                retrieved_node.properties.get('emoji'), 'Emoji: 😀 🚀 🌍'
+            )
 
         # Test deeply nested properties
         nested_node = await self.graph.add_node(
@@ -298,14 +302,15 @@ class GraphTestCase(common.PostgresTestCase):
         # Retrieve and check nested properties
         retrieved_nested = await self.graph.get_node(nested_node.id)
         self.assertIsNotNone(retrieved_nested)
-        nested_value = (
-            retrieved_nested.properties.get('level1', {})
-            .get('level2', {})
-            .get('level3', {})
-            .get('level4', {})
-            .get('value')
-        )
-        self.assertEqual(nested_value, 'deeply nested')
+        if retrieved_nested:
+            nested_value = (
+                retrieved_nested.properties.get('level1', {})
+                .get('level2', {})
+                .get('level3', {})
+                .get('level4', {})
+                .get('value')
+            )
+            self.assertEqual(nested_value, 'deeply nested')
 
         # Test large property values
         large_text = 'A' * 10000  # 10K characters
@@ -316,9 +321,10 @@ class GraphTestCase(common.PostgresTestCase):
         # Retrieve and check large properties
         retrieved_large = await self.graph.get_node(large_props_node.id)
         self.assertIsNotNone(retrieved_large)
-        self.assertEqual(
-            len(retrieved_large.properties.get('large_text', '')), 10000
-        )
+        if retrieved_large:
+            self.assertEqual(
+                len(retrieved_large.properties.get('large_text', '')), 10000
+            )
 
     async def test_edge_properties(self) -> None:
         """Test retrieving edge property names"""
@@ -409,17 +415,19 @@ class GraphTestCase(common.PostgresTestCase):
         retrieved_edge = await self.graph.get_edge(
             source_node.id, target_node.id
         )
-        self.assertIsInstance(retrieved_edge, models.Edge)
-        self.assertEqual(retrieved_edge.source, source_node.id)
-        self.assertEqual(retrieved_edge.target, target_node.id)
-        self.assertIn('LIVES_IN', retrieved_edge.labels)
+        self.assertIsNotNone(retrieved_edge)
+        if retrieved_edge:
+            self.assertIsInstance(retrieved_edge, models.Edge)
+            self.assertEqual(retrieved_edge.source, source_node.id)
+            self.assertEqual(retrieved_edge.target, target_node.id)
+            self.assertIn('LIVES_IN', retrieved_edge.labels)
 
-        # Update the edge
-        retrieved_edge.properties['verified'] = True
-        updated_edge = await self.graph.update_edge(retrieved_edge)
-        self.assertIsInstance(updated_edge, models.Edge)
-        self.assertEqual(updated_edge.properties.get('since'), 2020)
-        self.assertEqual(updated_edge.properties.get('verified'), True)
+            # Update the edge
+            retrieved_edge.properties['verified'] = True
+            updated_edge = await self.graph.update_edge(retrieved_edge)
+            self.assertIsInstance(updated_edge, models.Edge)
+            self.assertEqual(updated_edge.properties.get('since'), 2020)
+            self.assertEqual(updated_edge.properties.get('verified'), True)
 
         # Delete the edge
         delete_result = await self.graph.delete_edge(

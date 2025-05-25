@@ -70,7 +70,8 @@ class TestEmbeddings(unittest.TestCase):
         embed = embeddings.Embeddings(engine=embeddings.Engine.HUGGING_FACE)
         self.assertIsInstance(embed._engine, embeddings.HuggingFace)
         # Check that transformer is initialized
-        self.assertIsNotNone(embed._engine.transformer)
+        if isinstance(embed._engine, embeddings.HuggingFace):
+            self.assertIsNotNone(embed._engine.transformer)
 
     def test_init_hugging_face_custom_model(self) -> None:
         custom_model = 'sentence-transformers/all-MiniLM-L12-v2'
@@ -79,7 +80,8 @@ class TestEmbeddings(unittest.TestCase):
         )
         self.assertIsInstance(embed._engine, embeddings.HuggingFace)
         # Check that transformer is initialized
-        self.assertIsNotNone(embed._engine.transformer)
+        if isinstance(embed._engine, embeddings.HuggingFace):
+            self.assertIsNotNone(embed._engine.transformer)
 
     def test_init_invalid_engine(self) -> None:
         with self.assertRaises(ValueError) as context:
@@ -104,7 +106,10 @@ class TestOpenAIEmbeddings(unittest.TestCase):
         self.assertIsInstance(embed._engine, embeddings.OpenAI)
         openai_engine = embed._engine
         self.assertIsInstance(openai_engine, embeddings.OpenAI)
-        self.assertEqual(openai_engine.model, embeddings.DEFAULT_OPENAI_MODEL)
+        if isinstance(openai_engine, embeddings.OpenAI):
+            self.assertEqual(
+                openai_engine.model, embeddings.DEFAULT_OPENAI_MODEL
+            )
         mock_openai.assert_called_once_with(api_key=None)
 
     @unittest.mock.patch('openai.OpenAI')
@@ -122,7 +127,8 @@ class TestOpenAIEmbeddings(unittest.TestCase):
         self.assertIsInstance(embed._engine, embeddings.OpenAI)
         openai_engine = embed._engine
         self.assertIsInstance(openai_engine, embeddings.OpenAI)
-        self.assertEqual(openai_engine.model, custom_model)
+        if isinstance(openai_engine, embeddings.OpenAI):
+            self.assertEqual(openai_engine.model, custom_model)
         mock_openai.assert_called_once_with(api_key=api_key)
 
     @unittest.mock.patch('openai.OpenAI')

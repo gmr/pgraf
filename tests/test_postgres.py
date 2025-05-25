@@ -58,7 +58,9 @@ class PostgresTestCase(common.PostgresTestCase):
 
     async def test_pool_is_opened(self) -> None:
         await self.postgres._open_pool()
-        self.assertFalse(self.postgres._pool.closed)
+        self.assertIsNotNone(self.postgres._pool)
+        if self.postgres._pool:
+            self.assertFalse(self.postgres._pool.closed)
 
     async def test_execute(self) -> None:
         item = Model()
@@ -66,6 +68,8 @@ class PostgresTestCase(common.PostgresTestCase):
             INSERT_TEST_RECORD, item.model_dump(), Model
         ) as cursor:
             result = await cursor.fetchone()
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, Model)
         self.assertEqual(result.id, item.id)
         self.assertEqual(result.created_at, item.created_at)
         self.assertEqual(result.value, item.value)
@@ -87,6 +91,8 @@ class PostgresTestCase(common.PostgresTestCase):
             composed_query, item.model_dump(), Model
         ) as cursor:
             result = await cursor.fetchone()
+        self.assertIsNotNone(result)
+        self.assertIsInstance(result, Model)
         self.assertEqual(result.id, item.id)
         self.assertEqual(result.created_at, item.created_at)
         self.assertEqual(result.value, item.value)
@@ -168,23 +174,19 @@ class PostgresTestCase(common.PostgresTestCase):
 
         # Make sure pool exists but is closed
         self.assertIsNotNone(new_postgres._pool)
-        self.assertTrue(new_postgres._pool.closed)
+        if new_postgres._pool:
+            self.assertTrue(new_postgres._pool.closed)
 
         # Create a mock for _open_pool to verify it's called
-        original_open_pool = new_postgres._open_pool
-        open_pool_called = False
-
-        async def mock_open_pool():
-            nonlocal open_pool_called
-            open_pool_called = True
-            await original_open_pool()
-
-        new_postgres._open_pool = mock_open_pool
+        from unittest.mock import AsyncMock, patch
 
         # Use cursor which should call _open_pool
         try:
-            async with new_postgres.cursor() as cursor:
-                self.assertIsNotNone(cursor)
-                self.assertTrue(open_pool_called)
+            with patch.object(
+                new_postgres, '_open_pool', new_callable=AsyncMock
+            ) as mock_open_pool:
+                async with new_postgres.cursor() as cursor:
+                    self.assertIsNotNone(cursor)
+                    mock_open_pool.assert_called_once()
         finally:
             await new_postgres.aclose()

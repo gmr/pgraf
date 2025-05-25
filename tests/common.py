@@ -2,6 +2,7 @@ import json
 import pathlib
 import random
 import subprocess
+import typing
 import unittest
 
 import pydantic
@@ -12,9 +13,14 @@ from pgraf import postgres
 DATA_DIR = pathlib.Path(__file__).parent / 'data'
 
 
-def load_test_data(filename: str) -> list | dict:
+def load_test_data(filename: str) -> dict[str, typing.Any]:
     with (DATA_DIR / filename).open('r') as handle:
-        return yaml.safe_load(handle)
+        result = yaml.safe_load(handle)
+        if not isinstance(result, dict):
+            raise TypeError(
+                f'Expected dict from {filename}, got {type(result)}'
+            )
+        return result
 
 
 class PostgresTestCase(unittest.IsolatedAsyncioTestCase):

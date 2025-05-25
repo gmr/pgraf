@@ -26,7 +26,7 @@ class Embeddings:
         api_key: str | None = None,
     ) -> None:
         if engine == Engine.HUGGING_FACE:
-            self._engine = HuggingFace(model)
+            self._engine: HuggingFace | OpenAI = HuggingFace(model)
         elif engine == Engine.OPENAI:
             self._engine = OpenAI(model, api_key)
         else:

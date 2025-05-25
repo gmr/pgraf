@@ -21,8 +21,6 @@ RowFactory = rows.BaseRowFactory[Model | tuple[typing.Any, ...]]
 
 
 class Postgres:
-    _pool: psycopg_pool.AsyncConnectionPool | None
-
     def __init__(
         self,
         url: pydantic.PostgresDsn,
@@ -30,13 +28,15 @@ class Postgres:
         pool_max_size: int = 10,
     ) -> None:
         self._lock = asyncio.Lock()
-        self._pool = psycopg_pool.AsyncConnectionPool(
-            str(url),
-            kwargs={'autocommit': True, 'row_factory': rows.dict_row},
-            max_size=pool_max_size,
-            min_size=pool_min_size,
-            open=False,
-            configure=self._configure_vector,
+        self._pool: psycopg_pool.AsyncConnectionPool | None = (
+            psycopg_pool.AsyncConnectionPool(
+                str(url),
+                kwargs={'autocommit': True, 'row_factory': rows.dict_row},
+                max_size=pool_max_size,
+                min_size=pool_min_size,
+                open=False,
+                configure=self._configure_vector,
+            )
         )
         self._url = str(url)
 
