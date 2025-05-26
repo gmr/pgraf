@@ -170,4 +170,4 @@ class PostgresTestCase(common.PostgresTestCase):
             await cursor.execute('SELECT 1')
             self.assertEqual(cursor.rowcount, 1)
         await new_postgres.aclose()
-        self.assertTrue(new_postgres._pool.closed)
+        self.assertIsNone(new_postgres._pool)
