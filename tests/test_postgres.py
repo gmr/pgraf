@@ -126,8 +126,6 @@ class PostgresTestCase(common.PostgresTestCase):
         """
         async with self.postgres.cursor() as cursor:
             await cursor.execute(create_proc)
-
-        # Test the _callproc_columns function
         columns = []
         async for column in self.postgres._callproc_columns('test_proc'):
             columns.append(column)
@@ -151,42 +149,25 @@ class PostgresTestCase(common.PostgresTestCase):
         """
         async with self.postgres.cursor() as cursor:
             await cursor.execute(create_proc)
-
-        # Test with schema in proc_name
         statement = await self.postgres._callproc_statement('public.test_proc')
         self.assertIn('SELECT * FROM', statement.as_string(None))
         self.assertIn('public', statement.as_string(None))
         self.assertIn('test_proc', statement.as_string(None))
 
     async def test_cursor_no_pool(self) -> None:
-        # Force the pool to close
         await self.postgres.aclose()
         self.assertIsNone(self.postgres._pool)
-
-        # Test using cursor with no pool
         with self.assertRaises(RuntimeError):
             async with self.postgres.cursor() as _:
                 pass
 
     async def test_cursor_closed_pool(self) -> None:
-        # Create a new postgres instance
         new_postgres = common.postgres.Postgres(common.postgres_url())
-
-        # Make sure pool exists but is closed
         self.assertIsNotNone(new_postgres._pool)
         if new_postgres._pool:
             self.assertTrue(new_postgres._pool.closed)
-
-        # Create a mock for _open_pool to verify it's called
-        from unittest.mock import AsyncMock, patch
-
-        # Use cursor which should call _open_pool
-        try:
-            with patch.object(
-                new_postgres, '_open_pool', new_callable=AsyncMock
-            ) as mock_open_pool:
-                async with new_postgres.cursor() as cursor:
-                    self.assertIsNotNone(cursor)
-                    mock_open_pool.assert_called_once()
-        finally:
-            await new_postgres.aclose()
+        async with new_postgres.cursor() as cursor:
+            await cursor.execute('SELECT 1')
+            self.assertEqual(cursor.rowcount, 1)
+        await new_postgres.aclose()
+        self.assertTrue(new_postgres._pool.closed)
